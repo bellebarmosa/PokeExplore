@@ -1,7 +1,7 @@
 import React from 'react';
+import { Image, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import PokedexScreen from '../screens/PokedexScreen';
 import HuntScreen from '../screens/HuntScreen';
@@ -46,8 +46,12 @@ const TabNavigator = () => {
         name="Hunt"
         component={HuntScreen}
         options={{
-          tabBarIcon: ({ color, size }) => (
-            <Icon name="map-search" size={size} color={color} />
+          tabBarIcon: ({ focused }) => (
+            <Image
+              source={require('../icons/radar.png')}
+              style={[styles.tabIcon, { opacity: focused ? 1 : 0.5 }]}
+              resizeMode="contain"
+            />
           ),
         }}
       />
@@ -55,8 +59,12 @@ const TabNavigator = () => {
         name="Pokedex"
         component={PokedexScreen}
         options={{
-          tabBarIcon: ({ color, size }) => (
-            <Icon name="book-open-variant" size={size} color={color} />
+          tabBarIcon: ({ focused }) => (
+            <Image
+              source={require('../icons/pokedex.png')}
+              style={[styles.tabIcon, { opacity: focused ? 1 : 0.5 }]}
+              resizeMode="contain"
+            />
           ),
         }}
       />
@@ -64,8 +72,12 @@ const TabNavigator = () => {
         name="AR"
         component={ARScreen}
         options={{
-          tabBarIcon: ({ color, size }) => (
-            <Icon name="camera" size={size} color={color} />
+          tabBarIcon: ({ focused }) => (
+            <Image
+              source={require('../icons/ar.png')}
+              style={[styles.tabIcon, { opacity: focused ? 1 : 0.5 }]}
+              resizeMode="contain"
+            />
           ),
         }}
       />
@@ -73,8 +85,12 @@ const TabNavigator = () => {
         name="Feed"
         component={FeedScreen}
         options={{
-          tabBarIcon: ({ color, size }) => (
-            <Icon name="newspaper" size={size} color={color} />
+          tabBarIcon: ({ focused }) => (
+            <Image
+              source={require('../icons/feed.png')}
+              style={[styles.tabIcon, { opacity: focused ? 1 : 0.5 }]}
+              resizeMode="contain"
+            />
           ),
         }}
       />
@@ -82,14 +98,25 @@ const TabNavigator = () => {
         name="Profile"
         component={ProfileScreen}
         options={{
-          tabBarIcon: ({ color, size }) => (
-            <Icon name="account" size={size} color={color} />
+          tabBarIcon: ({ focused }) => (
+            <Image
+              source={require('../icons/profile.png')}
+              style={[styles.tabIcon, { opacity: focused ? 1 : 0.5 }]}
+              resizeMode="contain"
+            />
           ),
         }}
       />
     </Tab.Navigator>
   );
 };
+
+const styles = StyleSheet.create({
+  tabIcon: {
+    width: 24,
+    height: 24,
+  },
+});
 
 export default TabNavigator;
 

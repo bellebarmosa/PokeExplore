@@ -72,11 +72,6 @@ const RegionPicker: React.FC<RegionPickerProps> = ({
               <Text style={styles.regionNumber}>{regionInfo.number}</Text>
             </View>
           )}
-          {isAll && (
-            <View style={styles.regionIconContainer}>
-              <Icon name="format-list-bulleted" size={20} color="#7f8c8d" />
-            </View>
-          )}
           <Text
             style={[
               styles.regionItemText,
@@ -84,7 +79,7 @@ const RegionPicker: React.FC<RegionPickerProps> = ({
             ]}
           >
             {isAll
-              ? 'All Generations'
+              ? 'All Region'
               : `Region ${regionInfo!.number} (${regionInfo!.displayName})`}
           </Text>
         </View>
@@ -97,13 +92,13 @@ const RegionPicker: React.FC<RegionPickerProps> = ({
 
   const getDisplayText = () => {
     if (selectedValue === 'all') {
-      return 'All Generations';
+      return 'All Region';
     }
     if (selectedGen) {
       const regionInfo = getRegionInfo(selectedGen.name);
       return `Region ${regionInfo.number} (${regionInfo.displayName})`;
     }
-    return 'All Generations';
+    return 'All Region';
   };
 
   return (
@@ -113,7 +108,6 @@ const RegionPicker: React.FC<RegionPickerProps> = ({
         onPress={() => setModalVisible(true)}
       >
         <Text style={styles.selectedText}>{getDisplayText()}</Text>
-        <Icon name="chevron-down" size={20} color="#7f8c8d" />
       </TouchableOpacity>
 
       <Modal

@@ -10,8 +10,10 @@ import {
 } from 'react-native';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getPokemon, Pokemon } from '../services/pokeapi';
 import { getTypeColor } from '../utils/typeColors';
+import TypeIcon from '../components/TypeIcon';
 
 type RootStackParamList = {
   PokemonDetail: { pokemonId: number };
@@ -23,10 +25,14 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 const PokemonDetailScreen = () => {
   const route = useRoute<PokemonDetailRouteProp>();
   const navigation = useNavigation<NavigationProp>();
+  const insets = useSafeAreaInsets();
   const { pokemonId } = route.params;
   const [pokemon, setPokemon] = useState<Pokemon | null>(null);
   const [loading, setLoading] = useState(true);
   const [imageType, setImageType] = useState<'default' | 'shiny'>('default');
+  
+  // Get primary type color for background
+  const primaryTypeColor = pokemon ? getTypeColor(pokemon.types[0]?.type.name || 'normal') : '#f5f5f5';
 
   useEffect(() => {
     const loadPokemon = async () => {
@@ -79,15 +85,24 @@ const PokemonDetailScreen = () => {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>
-          {pokemon.name.charAt(0).toUpperCase() + pokemon.name.slice(1)}
-        </Text>
+    <ScrollView style={[styles.container, { backgroundColor: primaryTypeColor }]}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16), backgroundColor: primaryTypeColor }]}>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle}>
+            {pokemon.name.charAt(0).toUpperCase() + pokemon.name.slice(1)}
+          </Text>
+          <View style={styles.typesContainerHeader}>
+            {pokemon.types.map((type, index) => (
+              <View key={index} style={styles.typeIconHeader}>
+                <TypeIcon type={type.type.name} size={20} />
+              </View>
+            ))}
+          </View>
+        </View>
         <Text style={styles.headerId}>#{String(pokemon.id).padStart(3, '0')}</Text>
       </View>
 
-      <View style={styles.imageContainer}>
+      <View style={[styles.imageContainer, { backgroundColor: primaryTypeColor + '40' }]}>
         <Image source={{ uri: imageUrl }} style={styles.pokemonImage} />
         <TouchableOpacity
           style={styles.shinyButton}
@@ -108,6 +123,7 @@ const PokemonDetailScreen = () => {
                 key={index}
                 style={[styles.typeBadge, { backgroundColor: getTypeColor(type.type.name) }]}
               >
+                <TypeIcon type={type.type.name} size={20} />
                 <Text style={styles.typeText}>{type.type.name}</Text>
               </View>
             ))}
@@ -191,26 +207,38 @@ const styles = StyleSheet.create({
     color: '#e74c3c',
   },
   header: {
-    backgroundColor: '#fff',
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    paddingBottom: 20,
+  },
+  headerTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
   },
   headerTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#2c3e50',
+    color: '#fff',
+    marginRight: 8,
+  },
+  typesContainerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  typeIconHeader: {
+    marginLeft: 4,
   },
   headerId: {
     fontSize: 18,
-    color: '#7f8c8d',
+    color: 'rgba(255, 255, 255, 0.9)',
     marginTop: 4,
   },
   imageContainer: {
     alignItems: 'center',
-    backgroundColor: '#fff',
     padding: 20,
     marginBottom: 8,
+    marginHorizontal: 16,
+    borderRadius: 12,
   },
   pokemonImage: {
     width: 250,
@@ -232,7 +260,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   section: {
-    backgroundColor: '#fff',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
@@ -248,6 +276,8 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   typeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
@@ -259,6 +289,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     textTransform: 'capitalize',
+    marginLeft: 8,
   },
   abilityItem: {
     flexDirection: 'row',

@@ -10,6 +10,7 @@ import {
   Image,
   Alert,
 } from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -299,6 +300,21 @@ const PokedexScreen = () => {
         </View>
       </View>
 
+      {(searchQuery.trim() || selectedType !== 'all' || selectedGeneration !== 'all') && (
+        <View style={styles.resetContainer}>
+          <TouchableOpacity
+            style={styles.resetButton}
+            onPress={() => {
+              setSearchQuery('');
+              setSelectedType('all');
+              setSelectedGeneration('all');
+            }}
+          >
+            <Text style={styles.resetButtonText}>Reset Filters</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {loading && pokemonList.length === 0 ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#3498db" />
@@ -361,20 +377,20 @@ const PokedexScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#e83030',
   },
   header: {
-    backgroundColor: '#fff',
+    backgroundColor: '#e83030',
     paddingTop: 8,
     paddingBottom: 16,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: '#c02020',
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#2c3e50',
+    color: '#fff',
     marginTop: 8,
   },
   searchContainer: {
@@ -382,6 +398,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 8,
   },
   searchInput: {
     backgroundColor: '#f5f5f5',
@@ -397,6 +416,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 8,
   },
   filterGroup: {
     flex: 1,
@@ -407,6 +429,30 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#2c3e50',
     marginBottom: 8,
+  },
+  resetContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#e83030',
+    borderBottomWidth: 1,
+    borderBottomColor: '#c02020',
+  },
+  resetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#fff',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  resetButtonText: {
+    color: '#e83030',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
   },
   listContainer: {
     padding: 8,
@@ -477,9 +523,9 @@ const styles = StyleSheet.create({
     marginVertical: 20,
   },
   paginationContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: '#e83030',
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: '#c02020',
     paddingVertical: 16,
     paddingHorizontal: 16,
   },
@@ -489,7 +535,7 @@ const styles = StyleSheet.create({
   },
   paginationText: {
     fontSize: 14,
-    color: '#7f8c8d',
+    color: '#fff',
     fontWeight: '500',
   },
   paginationButtons: {
@@ -498,7 +544,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   paginationButton: {
-    backgroundColor: '#3498db',
+    backgroundColor: '#fff',
     paddingHorizontal: 24,
     paddingVertical: 10,
     borderRadius: 8,
@@ -506,15 +552,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   paginationButtonDisabled: {
-    backgroundColor: '#e0e0e0',
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
   },
   paginationButtonText: {
-    color: '#fff',
+    color: '#e83030',
     fontSize: 16,
     fontWeight: '600',
   },
   paginationButtonTextDisabled: {
-    color: '#7f8c8d',
+    color: 'rgba(255, 255, 255, 0.5)',
   },
   pageNumberContainer: {
     flex: 1,
@@ -522,7 +568,7 @@ const styles = StyleSheet.create({
   },
   pageNumberText: {
     fontSize: 16,
-    color: '#2c3e50',
+    color: '#fff',
     fontWeight: '600',
   },
 });

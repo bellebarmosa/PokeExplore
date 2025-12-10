@@ -82,11 +82,6 @@ const TypePicker: React.FC<TypePickerProps> = ({
             <TypeIcon type={item.name} size={20} />
           </View>
         )}
-        {isAll && (
-          <View style={[styles.typeIconContainer, { backgroundColor: '#7f8c8d', borderRadius: 10 }]}>
-            <Icon name="format-list-bulleted" size={20} color="#fff" />
-          </View>
-        )}
         <Text
           style={[
             styles.typeItemText,
@@ -110,18 +105,12 @@ const TypePicker: React.FC<TypePickerProps> = ({
         onPress={() => setModalVisible(true)}
       >
         {selectedType ? (
-          <View style={styles.selectedContainer}>
-            <View style={styles.selectedIconContainer}>
-              <TypeIcon type={selectedType.name} size={16} />
-            </View>
-            <Text style={styles.selectedText}>
-              {selectedType.name.charAt(0).toUpperCase() + selectedType.name.slice(1)}
-            </Text>
-          </View>
+          <Text style={styles.selectedText}>
+            {selectedType.name.charAt(0).toUpperCase() + selectedType.name.slice(1)}
+          </Text>
         ) : (
           <Text style={styles.placeholderText}>All Types</Text>
         )}
-        <Icon name="chevron-down" size={20} color="#7f8c8d" />
       </TouchableOpacity>
 
       <Modal
@@ -167,27 +156,15 @@ const styles = StyleSheet.create({
     borderColor: '#e0e0e0',
     minHeight: 44,
   },
-  selectedContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  selectedIconContainer: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-  },
   selectedText: {
     fontSize: 16,
     color: '#2c3e50',
     fontWeight: '600',
+    flex: 1,
   },
   placeholderText: {
     fontSize: 16,
-    color: '#7f8c8d',
+    color: '#2c3e50',
     flex: 1,
   },
   modalOverlay: {

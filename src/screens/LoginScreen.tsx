@@ -41,8 +41,10 @@ const LoginScreen = () => {
     setLoading(true);
     try {
       await signInWithGoogle();
+      // Success - navigation will happen automatically via auth state change
     } catch (error: any) {
-      Alert.alert('Google Sign-In Failed', error.message);
+      console.error('Google Sign-In Error:', error);
+      Alert.alert('Google Sign-In Failed', error.message || 'An error occurred. Please try again.');
     } finally {
       setLoading(false);
     }

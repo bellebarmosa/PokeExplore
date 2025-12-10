@@ -21,6 +21,7 @@ import { getAuth } from '@react-native-firebase/auth';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 // Initialize Firebase Auth using modular API
+// Firebase App is automatically initialized by native code via google-services.json
 export const firebaseAuth = getAuth(getApp());
 
 // Configure Google Sign-In
@@ -30,6 +31,8 @@ export const configureGoogleSignIn = () => {
   GoogleSignin.configure({
     // Replace with your Web Client ID from Firebase Console
     webClientId: '1060774015394-diitt134tfleu3krfo7tjrir6tdiugul.apps.googleusercontent.com', // Get this from Firebase Console
+    offlineAccess: true, // if you want to access Google API on behalf of the user FROM YOUR SERVER
+    forceCodeForRefreshToken: true, // [Android] related to `serverAuthCode`, read the docs link below *.
   });
 };
 

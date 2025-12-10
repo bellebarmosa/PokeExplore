@@ -9,8 +9,11 @@ import {
   ActivityIndicator,
   Image,
   Alert,
+  Platform,
+  PermissionsAndroid,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Voice from '@react-native-voice/voice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -61,6 +64,7 @@ type RootStackParamList = {
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'MainTabs'>;
 
 const ITEMS_PER_PAGE = 10;
+const POKEDEX_RED = '#e83030'; // Define the red color
 
 const PokedexScreen = () => {
   const navigation = useNavigation<NavigationProp>();
@@ -75,6 +79,98 @@ const PokedexScreen = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState<number | null>(null);
   const [totalPages, setTotalPages] = useState<number>(1);
+  const [isListening, setIsListening] = useState(false);
+  const [hasMicPermission, setHasMicPermission] = useState(false);
+
+  // Request microphone permission
+  useEffect(() => {
+    const requestMicPermission = async () => {
+      if (Platform.OS === 'android') {
+        try {
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+            {
+              title: 'Microphone Permission',
+              message: 'PokeExplore needs access to your microphone for voice search.',
+              buttonNeutral: 'Ask Me Later',
+              buttonNegative: 'Cancel',
+              buttonPositive: 'OK',
+            }
+          );
+          setHasMicPermission(granted === PermissionsAndroid.RESULTS.GRANTED);
+        } catch (err) {
+          console.warn('Microphone permission error:', err);
+          setHasMicPermission(false);
+        }
+      } else {
+        // iOS permissions are handled automatically by the library
+        setHasMicPermission(true);
+      }
+    };
+    requestMicPermission();
+  }, []);
+
+  // Voice recognition handlers
+  useEffect(() => {
+    // Check if Voice module is available and properly initialized
+    try {
+      if (!Voice) {
+        // Silently fail - voice search will be disabled
+        return;
+      }
+
+      // Check if Voice methods exist (indicates native module is linked)
+      if (typeof Voice.onSpeechStart === 'undefined') {
+        // Silently fail - voice search will be disabled
+        // This is expected if the app wasn't rebuilt after installing the package
+        return;
+      }
+
+      Voice.onSpeechStart = () => {
+        setIsListening(true);
+      };
+      Voice.onSpeechEnd = () => {
+        setIsListening(false);
+      };
+      Voice.onSpeechResults = (e) => {
+        if (e.value && e.value.length > 0) {
+          const spokenText = e.value[0].toLowerCase().trim();
+          setSearchQuery(spokenText);
+          if (Voice && typeof Voice.stop === 'function') {
+            Voice.stop().catch((err) => console.error('Error stopping voice:', err));
+          }
+        }
+      };
+      Voice.onSpeechError = (e) => {
+        console.error('Speech recognition error:', e);
+        setIsListening(false);
+        if (e.error?.code !== '7') { // Error 7 is user cancellation
+          Alert.alert('Voice Search Error', 'Failed to recognize speech. Please try again.');
+        }
+        if (Voice && typeof Voice.stop === 'function') {
+          Voice.stop().catch((err) => console.error('Error stopping voice:', err));
+        }
+      };
+    } catch (error) {
+      console.error('Failed to set up voice recognition:', error);
+    }
+
+    return () => {
+      try {
+        if (Voice && typeof Voice.destroy === 'function') {
+          Voice.destroy()
+            .then(() => {
+              if (Voice && typeof Voice.removeAllListeners === 'function') {
+                Voice.removeAllListeners();
+              }
+            })
+            .catch((err) => console.error('Error cleaning up voice:', err));
+        }
+      } catch (error) {
+        console.error('Error in voice cleanup:', error);
+      }
+    };
+  }, []);
 
   // Load types and generations on mount
   useEffect(() => {
@@ -239,6 +335,83 @@ const PokedexScreen = () => {
     navigation.navigate('PokemonDetail', { pokemonId: pokemon.id });
   };
 
+  const startVoiceSearch = async () => {
+    try {
+      // Check if Voice module is available
+      if (!Voice) {
+        Alert.alert(
+          'Voice Search Unavailable',
+          'Voice recognition is not available. Please rebuild the app after installing the voice module.'
+        );
+        return;
+      }
+
+      // Check if Voice methods are available (indicates native module is linked)
+      if (typeof Voice.start !== 'function' || typeof Voice.onSpeechStart === 'undefined') {
+        Alert.alert(
+          'Voice Search Not Linked',
+          'Voice recognition module is not properly linked. Please rebuild the app:\n\n1. Stop the Metro bundler\n2. Run: cd android && ./gradlew clean\n3. Run: npx react-native run-android'
+        );
+        return;
+      }
+
+      if (!hasMicPermission) {
+        Alert.alert(
+          'Microphone Permission Required',
+          'Please grant microphone permission to use voice search.'
+        );
+        return;
+      }
+
+      if (isListening) {
+        try {
+          if (typeof Voice.stop === 'function') {
+            await Voice.stop();
+          }
+          setIsListening(false);
+        } catch (stopError) {
+          console.error('Error stopping voice:', stopError);
+          setIsListening(false);
+        }
+      } else {
+        try {
+          await Voice.start('en-US');
+        } catch (startError: any) {
+          console.error('Error starting voice:', startError);
+          setIsListening(false);
+          const errorMessage = startError?.message || String(startError) || '';
+          
+          // Handle specific error cases
+          if (errorMessage.includes('permission') || startError?.code === 'permission_denied') {
+            Alert.alert('Permission Denied', 'Microphone permission is required for voice search.');
+          } else if (errorMessage.includes('null') || errorMessage.includes('startSpeech')) {
+            Alert.alert(
+              'Module Not Linked',
+              'Voice recognition native module is not properly linked. Please rebuild the app.'
+            );
+          } else if (errorMessage.includes('not available')) {
+            Alert.alert('Not Available', 'Voice recognition is not available on this device.');
+          } else {
+            Alert.alert('Error', `Failed to start voice search. Please try again.`);
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error('Voice search error:', error);
+      setIsListening(false);
+      const errorMessage = error?.message || String(error) || 'Unknown error';
+      
+      if (errorMessage.includes('null') || errorMessage.includes('startSpeech')) {
+        Alert.alert(
+          'Module Not Linked',
+          'Voice recognition native module is not properly linked. Please rebuild the app:\n\n1. Stop the Metro bundler\n2. Run: cd android && ./gradlew clean\n3. Run: npx react-native run-android'
+        );
+      } else {
+        Alert.alert('Error', `Failed to start voice search: ${errorMessage}`);
+      }
+    }
+  };
+
   const renderPokemonItem = ({ item }: { item: Pokemon }) => {
     const imageUrl = item.sprites.other?.['official-artwork']?.front_default || 
                     item.sprites.front_default || 
@@ -271,13 +444,30 @@ const PokedexScreen = () => {
       </View>
 
       <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search by name or ID..."
-          placeholderTextColor="#999"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
+        <View style={styles.searchInputContainer}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by name or ID..."
+            placeholderTextColor="#999"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          <TouchableOpacity
+            style={[styles.micButton, isListening && styles.micButtonActive]}
+            onPress={startVoiceSearch}
+            disabled={!hasMicPermission}
+          >
+            {isListening ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Image
+                source={require('../icons/mic.png')}
+                style={styles.micIcon}
+                resizeMode="contain"
+              />
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.filtersContainer}>
@@ -395,20 +585,39 @@ const styles = StyleSheet.create({
   },
   searchContainer: {
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: POKEDEX_RED, // Red theme
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    marginHorizontal: 16,
-    marginTop: 8,
-    borderRadius: 8,
+    borderBottomColor: 'rgba(255,255,255,0.2)', // Lighter border for red theme
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   searchInput: {
-    backgroundColor: '#f5f5f5',
+    flex: 1,
+    backgroundColor: '#fff', // White background for input
     borderRadius: 12,
     padding: 12,
     fontSize: 16,
     borderWidth: 1,
     borderColor: '#e0e0e0',
+    color: '#2c3e50', // Dark text color
+    marginRight: 8,
+  },
+  micButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#3498db',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  micButtonActive: {
+    backgroundColor: '#e74c3c',
+  },
+  micIcon: {
+    width: 24,
+    height: 24,
   },
   filtersContainer: {
     flexDirection: 'row',

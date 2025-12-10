@@ -69,6 +69,27 @@ export interface Generation {
   url: string;
 }
 
+export interface Habitat {
+  name: string;
+  url: string;
+}
+
+export interface HabitatDetail {
+  id: number;
+  name: string;
+  names: Array<{
+    language: {
+      name: string;
+      url: string;
+    };
+    name: string;
+  }>;
+  pokemon_species: Array<{
+    name: string;
+    url: string;
+  }>;
+}
+
 /**
  * Fetch a single Pokemon by ID or name
  */
@@ -113,6 +134,72 @@ export const getGenerations = async (): Promise<Generation[]> => {
   }
   const data = await response.json();
   return data.results;
+};
+
+/**
+ * Fetch all Pokemon habitats
+ */
+export const getHabitats = async (): Promise<Habitat[]> => {
+  const response = await fetch(`${BASE_URL}/pokemon-habitat`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch habitats: ${response.statusText}`);
+  }
+  const data = await response.json();
+  return data.results;
+};
+
+/**
+ * Get Pokemon species data (includes habitat)
+ */
+export const getPokemonSpecies = async (pokemonId: number): Promise<any> => {
+  const response = await fetch(`${BASE_URL}/pokemon-species/${pokemonId}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch Pokemon species: ${response.statusText}`);
+  }
+  return response.json();
+};
+
+/**
+ * Get Pokemon by habitat
+ */
+export const getPokemonByHabitat = async (habitatName: string): Promise<Pokemon[]> => {
+  try {
+    const response = await fetch(`${BASE_URL}/pokemon-habitat/${habitatName}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch habitat: ${response.statusText}`);
+    }
+    const data: HabitatDetail = await response.json();
+    
+    // Get random Pokemon from this habitat (up to MAX_POKEMON)
+    const speciesList = data.pokemon_species;
+    const randomSpecies = speciesList
+      .sort(() => Math.random() - 0.5)
+      .slice(0, Math.min(10, speciesList.length));
+    
+    // Fetch Pokemon details
+    const pokemonPromises = randomSpecies.map(async (species) => {
+      // Extract Pokemon ID from species URL
+      const speciesId = species.url.split('/').filter(Boolean).pop();
+      // Get species details to find the Pokemon ID
+      const speciesResponse = await fetch(`${BASE_URL}/pokemon-species/${speciesId}`);
+      if (!speciesResponse.ok) {
+        throw new Error(`Failed to fetch species: ${speciesResponse.statusText}`);
+      }
+      const speciesData = await speciesResponse.json();
+      // Get the first Pokemon variant (usually the base form)
+      const pokemonId = speciesData.varieties[0]?.pokemon?.url?.split('/').filter(Boolean).pop();
+      if (pokemonId) {
+        return getPokemon(pokemonId);
+      }
+      return null;
+    });
+    
+    const results = await Promise.all(pokemonPromises);
+    return results.filter((p): p is Pokemon => p !== null);
+  } catch (error) {
+    console.error('Failed to get Pokemon by habitat:', error);
+    throw error;
+  }
 };
 
 /**

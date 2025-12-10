@@ -11,13 +11,14 @@ import {
   Dimensions,
   Platform,
   PermissionsAndroid,
+  ScrollView,
 } from 'react-native';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
 import { useAuth } from '../contexts/AuthContext';
-import { Pokemon } from '../services/pokeapi';
+import { Pokemon, getPokemonSpecies } from '../services/pokeapi';
 import { addCaughtPokemon } from '../services/pokemonStorage';
 import { getTypeColor } from '../utils/typeColors';
 
@@ -44,10 +45,28 @@ const PokemonCatchScreen = () => {
   const [attempts, setAttempts] = useState(0);
   const [throwing, setThrowing] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
+  const [pokemonHabitat, setPokemonHabitat] = useState<string | null>(null);
+  const [pokemonInfo, setPokemonInfo] = useState<any>(null);
   
   // Camera setup
   const { hasPermission: cameraPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
+  
+  // Load Pokemon species data (habitat, etc.)
+  useEffect(() => {
+    const loadPokemonInfo = async () => {
+      try {
+        const speciesData = await getPokemonSpecies(pokemon.id);
+        setPokemonInfo(speciesData);
+        if (speciesData.habitat) {
+          setPokemonHabitat(speciesData.habitat.name);
+        }
+      } catch (error) {
+        console.error('Failed to load Pokemon species:', error);
+      }
+    };
+    loadPokemonInfo();
+  }, [pokemon.id]);
   
   // Animation values
   const pokeballAnim = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
@@ -362,61 +381,120 @@ const PokemonCatchScreen = () => {
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
-        <Text style={styles.headerTitle}>
-          {isShiny ? '✨ ' : ''}
-          {pokemon.name.charAt(0).toUpperCase() + pokemon.name.slice(1)}
-          {isShiny ? ' (Shiny!)' : ''}
-        </Text>
-        <Text style={styles.headerId}>#{String(pokemon.id).padStart(3, '0')}</Text>
-      </View>
-
-      {/* Default Background with Type Color */}
-      <View style={[styles.imageContainer, { backgroundColor: primaryTypeColor + '20' }]}>
-        <Image source={{ uri: imageUrl }} style={styles.pokemonImage} />
-      </View>
-
-      <View style={styles.typesContainer}>
-        {pokemon.types.map((type, index) => (
-          <View
-            key={index}
-            style={[styles.typeBadge, { backgroundColor: getTypeColor(type.type.name) }]}
-          >
-            <Text style={styles.typeText}>{type.type.name}</Text>
-          </View>
-        ))}
-      </View>
-
-      <View style={styles.catchOptions}>
-        <Text style={styles.catchOptionsTitle}>Choose Catch Method:</Text>
-        
         <TouchableOpacity
-          style={[styles.catchMethodButton, styles.defaultButton]}
-          onPress={() => handleCatch('default')}
-          disabled={catching}
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
         >
-          {catching && catchMethod === 'default' ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <>
-              <Text style={styles.catchMethodButtonText}>Default Background</Text>
-              <Text style={styles.catchMethodButtonSubtext}>Catch with type-colored background</Text>
-            </>
+          <Text style={styles.backButtonText}>← Back</Text>
+        </TouchableOpacity>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>
+            {isShiny ? '✨ ' : ''}
+            {pokemon.name.charAt(0).toUpperCase() + pokemon.name.slice(1)}
+            {isShiny ? ' (Shiny!)' : ''}
+          </Text>
+          <Text style={styles.headerId}>#{String(pokemon.id).padStart(3, '0')}</Text>
+        </View>
+      </View>
+
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* Default Background with Type Color */}
+        <View style={[styles.imageContainer, { backgroundColor: primaryTypeColor + '20' }]}>
+          <Image source={{ uri: imageUrl }} style={styles.pokemonImage} />
+        </View>
+
+        <View style={styles.typesContainer}>
+          {pokemon.types.map((type, index) => (
+            <View
+              key={index}
+              style={[styles.typeBadge, { backgroundColor: getTypeColor(type.type.name) }]}
+            >
+              <Text style={styles.typeText}>{type.type.name}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Pokemon Info Section */}
+        <View style={styles.infoSection}>
+          <Text style={styles.sectionTitle}>Information</Text>
+          
+          {/* Habitat */}
+          {pokemonHabitat && (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Habitat:</Text>
+              <Text style={styles.infoValue}>
+                {pokemonHabitat.charAt(0).toUpperCase() + pokemonHabitat.slice(1).replace('-', ' ')}
+              </Text>
+            </View>
           )}
-        </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.catchMethodButton, styles.arButton]}
-          onPress={() => {
-            setCatchMethod('ar');
-            setAttempts(0);
-            setThrowing(false);
-          }}
-          disabled={catching}
-        >
-          <Text style={styles.catchMethodButtonText}>AR Mode</Text>
-          <Text style={styles.catchMethodButtonSubtext}>Catch using camera (AR)</Text>
-        </TouchableOpacity>
-      </View>
+          {/* Height & Weight */}
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Height:</Text>
+            <Text style={styles.infoValue}>{(pokemon.height / 10).toFixed(1)} m</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Weight:</Text>
+            <Text style={styles.infoValue}>{(pokemon.weight / 10).toFixed(1)} kg</Text>
+          </View>
+
+          {/* Abilities */}
+          <View style={styles.abilitiesSection}>
+            <Text style={styles.infoLabel}>Abilities:</Text>
+            {pokemon.abilities.map((ability, index) => (
+              <Text key={index} style={styles.abilityText}>
+                • {ability.ability.name.charAt(0).toUpperCase() + ability.ability.name.slice(1)}
+                {ability.is_hidden && ' (Hidden)'}
+              </Text>
+            ))}
+          </View>
+
+          {/* Base Stats */}
+          <View style={styles.statsSection}>
+            <Text style={styles.infoLabel}>Base Stats:</Text>
+            {pokemon.stats.map((stat, index) => (
+              <View key={index} style={styles.statRow}>
+                <Text style={styles.statName}>
+                  {stat.stat.name.replace('-', ' ').charAt(0).toUpperCase() + stat.stat.name.replace('-', ' ').slice(1)}:
+                </Text>
+                <Text style={styles.statValue}>{stat.base_stat}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.catchOptions}>
+          <Text style={styles.catchOptionsTitle}>Choose Catch Method:</Text>
+          
+          <TouchableOpacity
+            style={[styles.catchMethodButton, styles.defaultButton]}
+            onPress={() => handleCatch('default')}
+            disabled={catching}
+          >
+            {catching && catchMethod === 'default' ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Text style={styles.catchMethodButtonText}>Default Background</Text>
+                <Text style={styles.catchMethodButtonSubtext}>Catch with type-colored background</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.catchMethodButton, styles.arButton]}
+            onPress={() => {
+              setCatchMethod('ar');
+              setAttempts(0);
+              setThrowing(false);
+            }}
+            disabled={catching}
+          >
+            <Text style={styles.catchMethodButtonText}>AR Mode</Text>
+            <Text style={styles.catchMethodButtonSubtext}>Catch using camera (AR)</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </View>
   );
 };
@@ -432,6 +510,19 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backButton: {
+    marginRight: 12,
+  },
+  backButtonText: {
+    fontSize: 16,
+    color: '#3498db',
+    fontWeight: '600',
+  },
+  headerContent: {
+    flex: 1,
     alignItems: 'center',
   },
   headerTitle: {
@@ -443,6 +534,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#7f8c8d',
     marginTop: 4,
+  },
+  scrollView: {
+    flex: 1,
   },
   imageContainer: {
     alignItems: 'center',
@@ -476,10 +570,73 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textTransform: 'capitalize',
   },
+  infoSection: {
+    backgroundColor: '#fff',
+    padding: 16,
+    marginTop: 8,
+    marginHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 12,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  infoLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2c3e50',
+  },
+  infoValue: {
+    fontSize: 16,
+    color: '#555',
+    textTransform: 'capitalize',
+  },
+  abilitiesSection: {
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  abilityText: {
+    fontSize: 14,
+    color: '#555',
+    marginTop: 4,
+    textTransform: 'capitalize',
+  },
+  statsSection: {
+    marginTop: 12,
+  },
+  statRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  statName: {
+    fontSize: 14,
+    color: '#555',
+    fontWeight: '600',
+    flex: 1,
+  },
+  statValue: {
+    fontSize: 14,
+    color: '#555',
+    fontWeight: '600',
+  },
   catchOptions: {
     padding: 20,
     backgroundColor: '#fff',
     marginTop: 8,
+    marginHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 16,
   },
   catchOptionsTitle: {
     fontSize: 18,

@@ -15,7 +15,8 @@ import Geolocation from '@react-native-community/geolocation';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getPokemon, Pokemon } from '../services/pokeapi';
+import { getPokemon, Pokemon, getPokemonByHabitat } from '../services/pokeapi';
+import { detectHabitat } from '../utils/habitatDetection';
 
 type RootStackParamList = {
   MainTabs: undefined;
@@ -43,6 +44,8 @@ const HuntScreen = () => {
   const [pokemonMarkers, setPokemonMarkers] = useState<PokemonMarker[]>([]);
   const [loading, setLoading] = useState(true);
   const [locationPermission, setLocationPermission] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [imagesLoaded, setImagesLoaded] = useState<Set<number>>(new Set());
 
   // Request location permission
   useEffect(() => {
@@ -113,17 +116,49 @@ const HuntScreen = () => {
     );
   };
 
-  const spawnPokemon = async (location: { latitude: number; longitude: number }) => {
+  const spawnPokemon = async (location: { latitude: number; longitude: number }, isRefresh: boolean = false) => {
     try {
-      // Get random Pokemon IDs (1-1025 is the current PokeAPI range)
-      const randomIds = new Set<number>();
-      while (randomIds.size < MAX_POKEMON) {
-        randomIds.add(Math.floor(Math.random() * 1025) + 1);
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
       }
-
-      // Fetch Pokemon data
-      const pokemonPromises = Array.from(randomIds).map((id) => getPokemon(id));
-      const pokemonList = await Promise.all(pokemonPromises);
+      
+      // Detect habitat based on location
+      const habitat = await detectHabitat(location.latitude, location.longitude);
+      console.log('Detected habitat for location:', habitat, location);
+      
+      // Get Pokemon based on detected habitat
+      let pokemonList: Pokemon[] = [];
+      try {
+        pokemonList = await getPokemonByHabitat(habitat);
+        
+        // If we don't have enough Pokemon from habitat, fill with random ones
+        if (pokemonList.length < MAX_POKEMON) {
+          const needed = MAX_POKEMON - pokemonList.length;
+          const randomIds = new Set<number>();
+          while (randomIds.size < needed) {
+            randomIds.add(Math.floor(Math.random() * 1025) + 1);
+          }
+          const randomPokemon = await Promise.all(
+            Array.from(randomIds).map((id) => getPokemon(id))
+          );
+          pokemonList = [...pokemonList, ...randomPokemon];
+        }
+        
+        // Limit to MAX_POKEMON
+        pokemonList = pokemonList.slice(0, MAX_POKEMON);
+      } catch (habitatError) {
+        console.error('Failed to get Pokemon by habitat, using random:', habitatError);
+        // Fallback to random Pokemon if habitat lookup fails
+        const randomIds = new Set<number>();
+        while (randomIds.size < MAX_POKEMON) {
+          randomIds.add(Math.floor(Math.random() * 1025) + 1);
+        }
+        pokemonList = await Promise.all(
+          Array.from(randomIds).map((id) => getPokemon(id))
+        );
+      }
 
       // Create markers with random positions around user
       const markers: PokemonMarker[] = pokemonList.map((pokemon) => {
@@ -145,10 +180,60 @@ const HuntScreen = () => {
         };
       });
 
-      setPokemonMarkers(markers);
+      // Preload images before setting markers
+      const preloadImages = async () => {
+        const imagePromises = markers.map((marker) => {
+          return new Promise<void>((resolve) => {
+            let imageUrl: string | null = null;
+            
+            if (marker.isShiny) {
+              imageUrl =
+                marker.pokemon.sprites.front_shiny ||
+                marker.pokemon.sprites.other?.['official-artwork']?.front_shiny ||
+                null;
+            }
+            
+            if (!imageUrl) {
+              imageUrl =
+                marker.pokemon.sprites.front_default ||
+                marker.pokemon.sprites.other?.['official-artwork']?.front_default ||
+                `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${marker.pokemon.id}.png`;
+            }
+            
+            const finalImageUrl = imageUrl || `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${marker.pokemon.id}.png`;
+            
+            // Use Image.prefetch to cache the image
+            Image.prefetch(finalImageUrl)
+              .then(() => {
+                resolve();
+              })
+              .catch((error) => {
+                console.warn('Failed to preload image:', finalImageUrl, error);
+                // Still resolve to show marker even if preload fails
+                resolve();
+              });
+          });
+        });
+        
+        // Wait for all images to be prefetched, then set markers
+        await Promise.all(imagePromises);
+        
+        // Set markers after images are preloaded
+        setPokemonMarkers(markers);
+        
+        // Force a small delay to ensure images are cached
+        setTimeout(() => {
+          setImagesLoaded(new Set(markers.map(m => m.id)));
+        }, 100);
+      };
+      
+      preloadImages();
     } catch (error) {
       console.error('Failed to spawn Pokemon:', error);
       Alert.alert('Error', 'Failed to load nearby Pokemon. Please try again.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -164,7 +249,7 @@ const HuntScreen = () => {
 
   const handleRefresh = () => {
     if (userLocation) {
-      spawnPokemon(userLocation);
+      spawnPokemon(userLocation, true);
     } else {
       getUserLocation();
     }
@@ -174,8 +259,12 @@ const HuntScreen = () => {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Text style={styles.title}>Hunt</Text>
-        <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh} disabled={loading}>
-          <Text style={styles.refreshButtonText}>Refresh</Text>
+        <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh} disabled={loading || refreshing}>
+          {refreshing ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={styles.refreshButtonText}>Refresh</Text>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -194,8 +283,14 @@ const HuntScreen = () => {
             latitudeDelta: 0.005,
             longitudeDelta: 0.005,
           }}
+          region={{
+            ...userLocation,
+            latitudeDelta: 0.005,
+            longitudeDelta: 0.005,
+          }}
           showsUserLocation={true}
           showsMyLocationButton={true}
+          key={`map-${pokemonMarkers.length}`}
         >
           {/* User location marker */}
           <Marker
@@ -233,7 +328,7 @@ const HuntScreen = () => {
             
             return (
               <Marker
-                key={marker.id}
+                key={`${marker.id}-${marker.latitude}-${marker.longitude}`}
                 coordinate={{
                   latitude: marker.latitude,
                   longitude: marker.longitude,
@@ -242,12 +337,16 @@ const HuntScreen = () => {
                 description={`#${String(marker.pokemon.id).padStart(3, '0')}`}
                 onPress={() => handlePokemonMarkerPress(marker)}
                 anchor={{ x: 0.5, y: 0.5 }}
+                tracksViewChanges={false}
               >
                 <View style={[styles.pokemonMarker, marker.isShiny && styles.shinyMarker]}>
                   <Image
                     source={{ uri: finalImageUrl }}
                     style={styles.pokemonMarkerImage}
                     resizeMode="contain"
+                    onLoad={() => {
+                      // Image loaded successfully
+                    }}
                     onError={(error) => {
                       console.error('Failed to load Pokemon image:', finalImageUrl, error);
                     }}

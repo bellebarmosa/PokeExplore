@@ -248,12 +248,25 @@ const PokemonCatchScreen = () => {
     pokeballAnim.setValue({ x: 0, y: 0 });
     pokeballScale.setValue(1);
 
-    // Animate pokeball throw
+    // Calculate Pokemon position relative to pokeball start position
+    // Pokeball starts at: bottom: 100, left: SCREEN_WIDTH / 2 - 25
+    // Pokemon center is at: top: SCREEN_HEIGHT / 2 - 150, left: SCREEN_WIDTH / 2 - 100, center of 200x200 = +100
+    const pokeballStartX = SCREEN_WIDTH / 2 - 25;
+    const pokeballStartY = SCREEN_HEIGHT - 100 - 25; // bottom 100 minus half height
+    
+    const pokemonCenterX = SCREEN_WIDTH / 2 - 100 + 100; // left + half width
+    const pokemonCenterY = SCREEN_HEIGHT / 2 - 150 + 100; // top + half height
+    
+    // Calculate relative movement
+    const pokemonX = pokemonCenterX - pokeballStartX;
+    const pokemonY = pokemonCenterY - pokeballStartY;
+
+    // Animate pokeball throw towards Pokemon
     Animated.sequence([
       // Throw animation
       Animated.parallel([
         Animated.timing(pokeballAnim, {
-          toValue: { x: SCREEN_WIDTH / 2 - 25, y: SCREEN_HEIGHT / 2 - 100 },
+          toValue: { x: pokemonX, y: pokemonY },
           duration: 500,
           useNativeDriver: true,
         }),
@@ -414,7 +427,11 @@ const PokemonCatchScreen = () => {
             },
           ]}
         >
-          <Text style={styles.pokeballEmoji}>⚪</Text>
+          <Image
+            source={require('../icons/pokeball.png')}
+            style={styles.pokeballImage}
+            resizeMode="contain"
+          />
         </Animated.View>
 
         {/* UI Overlay */}
@@ -821,8 +838,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 10,
   },
-  pokeballEmoji: {
-    fontSize: 50,
+  pokeballImage: {
+    width: 50,
+    height: 50,
   },
   arUIOverlay: {
     position: 'absolute',

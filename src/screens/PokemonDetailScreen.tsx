@@ -11,6 +11,7 @@ import {
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { getPokemon, Pokemon } from '../services/pokeapi';
+import { getTypeColor } from '../utils/typeColors';
 
 type RootStackParamList = {
   PokemonDetail: { pokemonId: number };
@@ -166,31 +167,6 @@ const PokemonDetailScreen = () => {
       </View>
     </ScrollView>
   );
-};
-
-// Export getTypeColor function
-export const getTypeColor = (type: string): string => {
-  const colors: { [key: string]: string } = {
-    normal: '#A8A878',
-    fire: '#F08030',
-    water: '#6890F0',
-    electric: '#F8D030',
-    grass: '#78C850',
-    ice: '#98D8D8',
-    fighting: '#C03028',
-    poison: '#A040A0',
-    ground: '#E0C068',
-    flying: '#A890F0',
-    psychic: '#F85888',
-    bug: '#A8B820',
-    rock: '#B8A038',
-    ghost: '#705898',
-    dragon: '#7038F8',
-    dark: '#705848',
-    steel: '#B8B8D0',
-    fairy: '#EE99AC',
-  };
-  return colors[type.toLowerCase()] || '#A8A878';
 };
 
 const styles = StyleSheet.create({

@@ -37,6 +37,8 @@
 	<string>We need your location to show nearby Pokemon on the map.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>We need your location to show nearby Pokemon on the map.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>We need camera access to use AR mode for catching Pokemon.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

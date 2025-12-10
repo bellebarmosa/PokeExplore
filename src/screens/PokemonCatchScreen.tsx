@@ -21,6 +21,14 @@ import { useAuth } from '../contexts/AuthContext';
 import { Pokemon, getPokemonSpecies } from '../services/pokeapi';
 import { addCaughtPokemon } from '../services/pokemonStorage';
 import { getTypeColor } from '../utils/typeColors';
+import {
+  checkCatchAchievements,
+  checkTypeAchievements,
+  getCatchCount,
+  getCatchCountByType,
+} from '../services/achievements';
+import { createAchievementFeedPost, createCatchFeedPost } from '../services/feed';
+import { getUserProfile, initializeUserProfile } from '../services/userProfile';
 
 type RootStackParamList = {
   PokemonCatch: { pokemon: Pokemon; location: { latitude: number; longitude: number }; isShiny: boolean; autoStartAR?: boolean };
@@ -133,22 +141,94 @@ const PokemonCatchScreen = () => {
       // Save caught Pokemon to Firebase
       if (user) {
         await addCaughtPokemon(pokemon, user.uid, location, method, isShiny);
+
+        // Get user profile for display name - ensure it exists first
+        let userProfile = await getUserProfile(user.uid);
+        if (!userProfile) {
+          // Initialize profile if it doesn't exist
+          await initializeUserProfile(user.uid, user.email || '', user.displayName || undefined);
+          userProfile = await getUserProfile(user.uid);
+        }
+        // Always use profile display name, never fallback to email prefix
+        const displayName = userProfile?.displayName || 'Trainer';
+
+        // Get Pokemon sprite for feed post
+        const pokemonSprite =
+          pokemon.sprites.other?.['official-artwork']?.front_default ||
+          pokemon.sprites.front_default ||
+          '';
+
+        // Check achievements (automatic - no user prompt needed)
+        const totalCaught = await getCatchCount(user.uid);
+        const unlockedAchievements = await checkCatchAchievements(user.uid, totalCaught, pokemon.id);
+
+        // Check type achievements for each type of the caught Pokemon
+        for (const type of pokemon.types) {
+          const typeCount = await getCatchCountByType(user.uid, type.type.name);
+          const typeAchievements = await checkTypeAchievements(user.uid, type.type.name, typeCount);
+          unlockedAchievements.push(...typeAchievements);
+        }
+
+        // Create feed posts for newly unlocked achievements (automatic)
+        for (const achievement of unlockedAchievements) {
+          await createAchievementFeedPost(user.uid, displayName, achievement.achievementName);
+        }
+
+        // Show catch success alert with option to share
+        const pokemonName = pokemon.name.charAt(0).toUpperCase() + pokemon.name.slice(1);
+        const achievementMessage = unlockedAchievements.length > 0
+          ? `\n\nAchievements Unlocked: ${unlockedAchievements.map((a) => a.achievementName).join(', ')}`
+          : '';
+
+        Alert.alert(
+          'Pokemon Caught!',
+          `You caught ${pokemonName}!${achievementMessage}`,
+          [
+            {
+              text: 'Keep Private',
+              style: 'cancel',
+              onPress: () => {
+                navigation.navigate('MainTabs');
+              },
+            },
+            {
+              text: 'Share to Feed',
+              onPress: async () => {
+                try {
+                  // Create catch feed post only if user chooses to share
+                  await createCatchFeedPost(
+                    user.uid,
+                    displayName,
+                    pokemon.name,
+                    pokemon.id,
+                    pokemonSprite
+                  );
+                  Alert.alert('Shared!', 'Your catch has been shared to the feed!', [
+                    {
+                      text: 'OK',
+                      onPress: () => {
+                        navigation.navigate('MainTabs');
+                      },
+                    },
+                  ]);
+                } catch (error) {
+                  console.error('Failed to share catch:', error);
+                  Alert.alert('Error', 'Failed to share catch. Please try again.', [
+                    {
+                      text: 'OK',
+                      onPress: () => {
+                        navigation.navigate('MainTabs');
+                      },
+                    },
+                  ]);
+                }
+              },
+            },
+          ]
+        );
       } else {
         throw new Error('User not authenticated');
       }
-
-      Alert.alert(
-        'Pokemon Caught!',
-        `You caught ${pokemon.name.charAt(0).toUpperCase() + pokemon.name.slice(1)}!`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              navigation.navigate('MainTabs');
-            },
-          },
-        ]
-      );
     } catch (error) {
       console.error('Failed to catch Pokemon:', error);
       Alert.alert('Error', 'Failed to catch Pokemon. Please try again.');

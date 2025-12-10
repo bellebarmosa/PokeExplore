@@ -23,6 +23,51 @@ service cloud.firestore {
       allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
     
+    // Allow users to read and write their own achievements
+    match /achievements/{document=**} {
+      // Allow read if the document's userId matches the authenticated user's ID
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      
+      // Allow create if the userId in the request matches the authenticated user's ID
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      
+      // Allow update if the document's userId matches the authenticated user's ID
+      allow update: if request.auth != null && resource.data.userId == request.auth.uid;
+      
+      // Allow delete if the document's userId matches the authenticated user's ID
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+    
+    // Allow all authenticated users to read feed posts, but only create their own
+    match /feed/{document=**} {
+      // Allow read for all authenticated users (global feed)
+      allow read: if request.auth != null;
+      
+      // Allow create if the userId in the request matches the authenticated user's ID
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      
+      // Allow update if the document's userId matches the authenticated user's ID
+      allow update: if request.auth != null && resource.data.userId == request.auth.uid;
+      
+      // Allow delete if the document's userId matches the authenticated user's ID
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+    
+    // Allow users to read and write their own profile
+    match /users/{userId} {
+      // Allow read if the userId matches the authenticated user's ID
+      allow read: if request.auth != null && userId == request.auth.uid;
+      
+      // Allow create if the userId matches the authenticated user's ID
+      allow create: if request.auth != null && userId == request.auth.uid;
+      
+      // Allow update if the userId matches the authenticated user's ID
+      allow update: if request.auth != null && userId == request.auth.uid;
+      
+      // Allow delete if the userId matches the authenticated user's ID
+      allow delete: if request.auth != null && userId == request.auth.uid;
+    }
+    
     // Deny all other access
     match /{document=**} {
       allow read, write: if false;

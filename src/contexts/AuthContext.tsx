@@ -10,6 +10,7 @@ import {
 } from '@react-native-firebase/auth';
 import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
 import { firebaseAuth, configureGoogleSignIn } from '../config/firebase.config';
+import { initializeUserProfile } from '../services/userProfile';
 
 interface User {
   uid: string;
@@ -53,7 +54,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       configureGoogleSignIn();
 
       // Subscribe to auth state changes using modular API
-      unsubscribe = onAuthStateChanged(firebaseAuth, (firebaseUser: FirebaseAuthTypes.User | null) => {
+      unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser: FirebaseAuthTypes.User | null) => {
         if (firebaseUser) {
           setUser({
             uid: firebaseUser.uid,
@@ -61,6 +62,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             displayName: firebaseUser.displayName,
             photoURL: firebaseUser.photoURL,
           });
+          
+          // Initialize user profile if it doesn't exist
+          try {
+            await initializeUserProfile(
+              firebaseUser.uid,
+              firebaseUser.email || '',
+              firebaseUser.displayName || undefined
+            );
+          } catch (error) {
+            console.error('Failed to initialize user profile:', error);
+          }
         } else {
           setUser(null);
         }

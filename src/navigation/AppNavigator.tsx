@@ -6,12 +6,14 @@ import { ActivityIndicator, View, StyleSheet } from 'react-native';
 
 import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
-import HomeScreen from '../screens/HomeScreen';
+import TabNavigator from './TabNavigator';
+import PokemonDetailScreen from '../screens/PokemonDetailScreen';
 
 export type RootStackParamList = {
   Login: undefined;
   Signup: undefined;
-  Home: undefined;
+  MainTabs: undefined;
+  PokemonDetail: { pokemonId: number };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -35,7 +37,17 @@ const AppNavigator = () => {
         }}
       >
         {user ? (
-          <Stack.Screen name="Home" component={HomeScreen} />
+          <>
+            <Stack.Screen name="MainTabs" component={TabNavigator} />
+            <Stack.Screen 
+              name="PokemonDetail" 
+              component={PokemonDetailScreen}
+              options={{
+                headerShown: true,
+                title: 'Pokemon Details',
+              }}
+            />
+          </>
         ) : (
           <>
             <Stack.Screen name="Login" component={LoginScreen} />

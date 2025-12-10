@@ -1,5 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithCredential,
+  signOut as firebaseSignOut,
+  GoogleAuthProvider,
+  type FirebaseAuthTypes,
+} from '@react-native-firebase/auth';
 import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
 import { firebaseAuth, configureGoogleSignIn } from '../config/firebase.config';
 
@@ -41,8 +49,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Configure Google Sign-In on mount
     configureGoogleSignIn();
 
-    // Subscribe to auth state changes
-    const unsubscribe = firebaseAuth.onAuthStateChanged((firebaseUser: FirebaseAuthTypes.User | null) => {
+    // Subscribe to auth state changes using modular API
+    const unsubscribe = onAuthStateChanged(firebaseAuth, (firebaseUser: FirebaseAuthTypes.User | null) => {
       if (firebaseUser) {
         setUser({
           uid: firebaseUser.uid,
@@ -61,7 +69,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signInWithEmail = async (email: string, password: string) => {
     try {
-      await firebaseAuth.signInWithEmailAndPassword(email, password);
+      await signInWithEmailAndPassword(firebaseAuth, email, password);
     } catch (error: any) {
       throw new Error(error.message || 'Failed to sign in');
     }
@@ -69,7 +77,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signUpWithEmail = async (email: string, password: string) => {
     try {
-      await firebaseAuth.createUserWithEmailAndPassword(email, password);
+      await createUserWithEmailAndPassword(firebaseAuth, email, password);
     } catch (error: any) {
       throw new Error(error.message || 'Failed to sign up');
     }
@@ -94,11 +102,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw new Error('Failed to get ID token from Google Sign-In');
       }
       
-      // Create a Google credential with the token
-      const googleCredential = auth.GoogleAuthProvider.credential(idToken);
+      // Create a Google credential with the token using modular API
+      const googleCredential = GoogleAuthProvider.credential(idToken);
       
       // Sign-in the user with the credential
-      await firebaseAuth.signInWithCredential(googleCredential);
+      await signInWithCredential(firebaseAuth, googleCredential);
     } catch (error: any) {
       throw new Error(error.message || 'Failed to sign in with Google');
     }
@@ -107,7 +115,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signOut = async () => {
     try {
       await GoogleSignin.signOut();
-      await firebaseAuth.signOut();
+      await firebaseSignOut(firebaseAuth);
     } catch (error: any) {
       throw new Error(error.message || 'Failed to sign out');
     }

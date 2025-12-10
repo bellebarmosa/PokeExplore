@@ -16,11 +16,12 @@
  * - For Android: The build will automatically pick up google-services.json
  */
 
-import auth from '@react-native-firebase/auth';
+import { getApp } from '@react-native-firebase/app';
+import { getAuth } from '@react-native-firebase/auth';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
-// Initialize Firebase Auth
-export const firebaseAuth = auth();
+// Initialize Firebase Auth using modular API
+export const firebaseAuth = getAuth(getApp());
 
 // Configure Google Sign-In
 // You'll need to get your web client ID from Firebase Console

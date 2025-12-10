@@ -16,12 +16,13 @@ import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
+import { useAuth } from '../contexts/AuthContext';
 import { Pokemon } from '../services/pokeapi';
 import { addCaughtPokemon } from '../services/pokemonStorage';
 import { getTypeColor } from '../utils/typeColors';
 
 type RootStackParamList = {
-  PokemonCatch: { pokemon: Pokemon; location: { latitude: number; longitude: number }; isShiny: boolean };
+  PokemonCatch: { pokemon: Pokemon; location: { latitude: number; longitude: number }; isShiny: boolean; autoStartAR?: boolean };
   MainTabs: undefined;
 };
 
@@ -36,9 +37,10 @@ const PokemonCatchScreen = () => {
   const route = useRoute<PokemonCatchRouteProp>();
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
-  const { pokemon, location, isShiny } = route.params;
+  const { user } = useAuth();
+  const { pokemon, location, isShiny, autoStartAR } = route.params;
   const [catching, setCatching] = useState(false);
-  const [catchMethod, setCatchMethod] = useState<'default' | 'ar' | null>(null);
+  const [catchMethod, setCatchMethod] = useState<'default' | 'ar' | null>(autoStartAR ? 'ar' : null);
   const [attempts, setAttempts] = useState(0);
   const [throwing, setThrowing] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
@@ -109,8 +111,12 @@ const PokemonCatchScreen = () => {
       // Simulate catch animation/delay
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
-      // Save caught Pokemon
-      await addCaughtPokemon(pokemon, location, method, isShiny);
+      // Save caught Pokemon to Firebase
+      if (user) {
+        await addCaughtPokemon(pokemon, user.uid, location, method, isShiny);
+      } else {
+        throw new Error('User not authenticated');
+      }
 
       Alert.alert(
         'Pokemon Caught!',

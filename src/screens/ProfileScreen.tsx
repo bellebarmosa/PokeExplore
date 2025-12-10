@@ -20,12 +20,15 @@ const ProfileScreen = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadCaughtPokemon();
-  }, []);
+    if (user) {
+      loadCaughtPokemon();
+    }
+  }, [user]);
 
   const loadCaughtPokemon = async () => {
+    if (!user) return;
     try {
-      const pokemon = await getCaughtPokemon();
+      const pokemon = await getCaughtPokemon(user.uid);
       setCaughtPokemon(pokemon);
     } catch (error) {
       console.error('Failed to load caught Pokemon:', error);

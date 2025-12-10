@@ -1,12 +1,11 @@
 /**
  * Pokemon Storage Service
- * Stores caught Pokemon using AsyncStorage
+ * Stores caught Pokemon using Firebase Firestore
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import firestore from '@react-native-firebase/firestore';
 import { Pokemon } from './pokeapi';
-
-const CAUGHT_POKEMON_KEY = '@pokeexplore:caught_pokemon';
+import { useAuth } from '../contexts/AuthContext';
 
 export interface CaughtPokemon extends Pokemon {
   caughtAt: string;
@@ -16,18 +15,28 @@ export interface CaughtPokemon extends Pokemon {
   };
   caughtMethod: 'default' | 'ar';
   isShiny: boolean;
+  userId: string; // Store user ID to associate Pokemon with user
 }
 
+const COLLECTION_NAME = 'caughtPokemon';
+
 /**
- * Get all caught Pokemon
+ * Get all caught Pokemon for the current user
  */
-export const getCaughtPokemon = async (): Promise<CaughtPokemon[]> => {
+export const getCaughtPokemon = async (userId: string): Promise<CaughtPokemon[]> => {
   try {
-    const data = await AsyncStorage.getItem(CAUGHT_POKEMON_KEY);
-    if (data) {
-      return JSON.parse(data);
-    }
-    return [];
+    const snapshot = await firestore()
+      .collection(COLLECTION_NAME)
+      .where('userId', '==', userId)
+      .get();
+
+    // Sort by caughtAt in descending order (newest first) in JavaScript
+    const pokemon = snapshot.docs.map((doc) => doc.data() as CaughtPokemon);
+    return pokemon.sort((a, b) => {
+      const dateA = new Date(a.caughtAt).getTime();
+      const dateB = new Date(b.caughtAt).getTime();
+      return dateB - dateA; // Descending order (newest first)
+    });
   } catch (error) {
     console.error('Failed to get caught Pokemon:', error);
     return [];
@@ -39,6 +48,7 @@ export const getCaughtPokemon = async (): Promise<CaughtPokemon[]> => {
  */
 export const addCaughtPokemon = async (
   pokemon: Pokemon,
+  userId: string,
   location?: { latitude: number; longitude: number },
   method: 'default' | 'ar' = 'default',
   isShiny: boolean = false
@@ -50,15 +60,28 @@ export const addCaughtPokemon = async (
       caughtLocation: location,
       caughtMethod: method,
       isShiny,
+      userId,
     };
 
-    const existing = await getCaughtPokemon();
-    // Check if Pokemon is already caught (by ID)
-    const isAlreadyCaught = existing.some((p) => p.id === pokemon.id);
-    
-    if (!isAlreadyCaught) {
-      const updated = [...existing, caughtPokemon];
-      await AsyncStorage.setItem(CAUGHT_POKEMON_KEY, JSON.stringify(updated));
+    // Check if Pokemon is already caught by this user
+    const existing = await firestore()
+      .collection(COLLECTION_NAME)
+      .where('userId', '==', userId)
+      .where('id', '==', pokemon.id)
+      .get();
+
+    if (existing.empty) {
+      // Add new Pokemon
+      await firestore()
+        .collection(COLLECTION_NAME)
+        .add(caughtPokemon);
+    } else {
+      // Update existing Pokemon (in case user wants to update shiny status, etc.)
+      const docId = existing.docs[0].id;
+      await firestore()
+        .collection(COLLECTION_NAME)
+        .doc(docId)
+        .update(caughtPokemon);
     }
   } catch (error) {
     console.error('Failed to add caught Pokemon:', error);
@@ -67,12 +90,18 @@ export const addCaughtPokemon = async (
 };
 
 /**
- * Check if a Pokemon is already caught
+ * Check if a Pokemon is already caught by the user
  */
-export const isPokemonCaught = async (pokemonId: number): Promise<boolean> => {
+export const isPokemonCaught = async (pokemonId: number, userId: string): Promise<boolean> => {
   try {
-    const caught = await getCaughtPokemon();
-    return caught.some((p) => p.id === pokemonId);
+    const snapshot = await firestore()
+      .collection(COLLECTION_NAME)
+      .where('userId', '==', userId)
+      .where('id', '==', pokemonId)
+      .limit(1)
+      .get();
+
+    return !snapshot.empty;
   } catch (error) {
     console.error('Failed to check if Pokemon is caught:', error);
     return false;
@@ -82,14 +111,20 @@ export const isPokemonCaught = async (pokemonId: number): Promise<boolean> => {
 /**
  * Remove a caught Pokemon
  */
-export const removeCaughtPokemon = async (pokemonId: number): Promise<void> => {
+export const removeCaughtPokemon = async (pokemonId: number, userId: string): Promise<void> => {
   try {
-    const existing = await getCaughtPokemon();
-    const updated = existing.filter((p) => p.id !== pokemonId);
-    await AsyncStorage.setItem(CAUGHT_POKEMON_KEY, JSON.stringify(updated));
+    const snapshot = await firestore()
+      .collection(COLLECTION_NAME)
+      .where('userId', '==', userId)
+      .where('id', '==', pokemonId)
+      .limit(1)
+      .get();
+
+    if (!snapshot.empty) {
+      await snapshot.docs[0].ref.delete();
+    }
   } catch (error) {
     console.error('Failed to remove caught Pokemon:', error);
     throw error;
   }
 };
-

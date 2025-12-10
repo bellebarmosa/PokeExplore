@@ -15,7 +15,7 @@ export type RootStackParamList = {
   Signup: undefined;
   MainTabs: undefined;
   PokemonDetail: { pokemonId: number };
-  PokemonCatch: { pokemon: any; location: { latitude: number; longitude: number }; isShiny: boolean };
+  PokemonCatch: { pokemon: any; location: { latitude: number; longitude: number }; isShiny: boolean; autoStartAR?: boolean };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();

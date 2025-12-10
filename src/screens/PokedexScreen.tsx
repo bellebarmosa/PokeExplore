@@ -25,6 +25,7 @@ import {
   getPokemon,
   Pokemon,
 } from '../services/pokeapi';
+import { isPokemonInGeneration } from '../utils/generationRanges';
 
 // Type color mapping
 const getTypeColor = (type: string): string => {
@@ -91,52 +92,107 @@ const PokedexScreen = () => {
     loadFilters();
   }, []);
 
+  // Store all filtered Pokemon for pagination
+  const [allFilteredPokemon, setAllFilteredPokemon] = useState<Pokemon[]>([]);
+
   // Load Pokemon data
   const loadPokemon = useCallback(async (page: number) => {
     try {
       setLoading(true);
-      let pokemon: Pokemon[] = [];
+      let allPokemon: Pokemon[] = [];
       let count: number | null = null;
 
+      // Check if we have search query
       if (searchQuery.trim()) {
-        // Search by name or ID
         const query = searchQuery.trim();
         if (/^\d+$/.test(query)) {
           // Search by ID
           try {
             const pokemonData = await getPokemon(parseInt(query, 10));
-            pokemon = [pokemonData];
+            allPokemon = [pokemonData];
             count = 1;
           } catch (error) {
             Alert.alert('Error', 'Pokemon not found');
-            pokemon = [];
+            allPokemon = [];
             count = 0;
           }
         } else {
           // Search by name
-          pokemon = await searchPokemonByName(query);
-          count = pokemon.length;
+          allPokemon = await searchPokemonByName(query);
+          count = allPokemon.length;
         }
-      } else if (selectedType !== 'all') {
-        // Filter by type
-        pokemon = await getPokemonByType(selectedType);
-        count = pokemon.length;
-      } else if (selectedGeneration !== 'all') {
-        // Filter by generation
-        pokemon = await getPokemonByGeneration(selectedGeneration);
-        count = pokemon.length;
       } else {
-        // Default: paginated list
-        const offset = (page - 1) * ITEMS_PER_PAGE;
-        const response = await getPokemonList(offset, ITEMS_PER_PAGE);
-        count = response.count;
+        // No search query - use filters or default list
+        if (selectedType !== 'all' || selectedGeneration !== 'all') {
+          // Apply type and/or generation filters
+          if (selectedType !== 'all' && selectedGeneration !== 'all') {
+            // Both filters: get Pokemon by type AND generation
+            const [typePokemon, genPokemon] = await Promise.all([
+              getPokemonByType(selectedType),
+              getPokemonByGeneration(selectedGeneration)
+            ]);
+            
+            // Find intersection: Pokemon that are in both lists
+            const genIds = new Set(genPokemon.map(p => p.id));
+            allPokemon = typePokemon.filter(p => genIds.has(p.id));
+          } else if (selectedType !== 'all') {
+            // Only type filter
+            allPokemon = await getPokemonByType(selectedType);
+          } else if (selectedGeneration !== 'all') {
+            // Only generation filter
+            allPokemon = await getPokemonByGeneration(selectedGeneration);
+          }
+          count = allPokemon.length;
+        } else {
+          // Default: paginated list from API
+          const offset = (page - 1) * ITEMS_PER_PAGE;
+          const response = await getPokemonList(offset, ITEMS_PER_PAGE);
+          count = response.count;
+          
+          const pokemonPromises = response.results.map(async (item) => {
+            const id = item.url.split('/').filter(Boolean).pop();
+            return getPokemon(id!);
+          });
+          
+          allPokemon = await Promise.all(pokemonPromises);
+        }
+      }
+
+      // Apply additional filters to search results
+      if (searchQuery.trim() && allPokemon.length > 0) {
+        let filtered = allPokemon;
         
-        const pokemonPromises = response.results.map(async (item) => {
-          const id = item.url.split('/').filter(Boolean).pop();
-          return getPokemon(id!);
-        });
+        // Apply type filter if selected
+        if (selectedType !== 'all') {
+          filtered = filtered.filter(p => 
+            p.types.some(t => t.type.name.toLowerCase() === selectedType.toLowerCase())
+          );
+        }
         
-        pokemon = await Promise.all(pokemonPromises);
+        // Apply generation filter if selected
+        if (selectedGeneration !== 'all') {
+          filtered = filtered.filter(p => 
+            isPokemonInGeneration(p.id, selectedGeneration)
+          );
+        }
+        
+        allPokemon = filtered;
+        count = allPokemon.length;
+      }
+
+      // Store all filtered Pokemon for pagination
+      setAllFilteredPokemon(allPokemon);
+
+      // Paginate the results
+      let pokemon: Pokemon[] = [];
+      if (searchQuery.trim() || selectedType !== 'all' || selectedGeneration !== 'all') {
+        // Paginate filtered results
+        const startIndex = (page - 1) * ITEMS_PER_PAGE;
+        const endIndex = startIndex + ITEMS_PER_PAGE;
+        pokemon = allPokemon.slice(startIndex, endIndex);
+      } else {
+        // Use API paginated results directly
+        pokemon = allPokemon;
       }
 
       setPokemonList(pokemon);

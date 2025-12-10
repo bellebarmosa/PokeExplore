@@ -223,37 +223,91 @@ export const searchPokemonByName = async (searchTerm: string): Promise<Pokemon[]
 
 /**
  * Filter Pokemon by type
+ * Returns ALL Pokemon of the specified type (not limited to 20)
  */
 export const getPokemonByType = async (typeName: string): Promise<Pokemon[]> => {
-  const response = await fetch(`${BASE_URL}/type/${typeName}`);
+  // Ensure type name is lowercase (PokeAPI requires lowercase)
+  const normalizedTypeName = typeName.toLowerCase();
+  const response = await fetch(`${BASE_URL}/type/${normalizedTypeName}`);
   if (!response.ok) {
     throw new Error(`Failed to fetch Pokemon by type: ${response.statusText}`);
   }
   const data = await response.json();
   
-  const pokemonPromises = data.pokemon.slice(0, 20).map((item: any) => {
-    const id = item.pokemon.url.split('/').filter(Boolean).pop();
-    return getPokemon(id);
+  // Fetch ALL Pokemon of this type, not just first 20
+  // Handle errors for individual Pokemon fetches so one failure doesn't break everything
+  const pokemonPromises = data.pokemon.map(async (item: any) => {
+    try {
+      const id = item.pokemon.url.split('/').filter(Boolean).pop();
+      if (!id) {
+        return null;
+      }
+      return await getPokemon(id);
+    } catch (error) {
+      console.warn(`Failed to fetch Pokemon with ID from type ${normalizedTypeName}:`, error);
+      return null;
+    }
   });
 
-  return Promise.all(pokemonPromises);
+  const results = await Promise.all(pokemonPromises);
+  return results.filter((p): p is Pokemon => p !== null);
 };
 
 /**
  * Filter Pokemon by generation
+ * Returns ALL Pokemon of the specified generation using National Pokedex ranges
  */
 export const getPokemonByGeneration = async (generationName: string): Promise<Pokemon[]> => {
-  const response = await fetch(`${BASE_URL}/generation/${generationName}`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch Pokemon by generation: ${response.statusText}`);
-  }
-  const data = await response.json();
+  // Import generation ranges utility
+  const generationRanges = await import('../utils/generationRanges');
   
-  const pokemonPromises = data.pokemon_species.slice(0, 20).map((species: any) => {
-    const id = species.url.split('/').filter(Boolean).pop();
-    return getPokemon(id);
-  });
-
-  return Promise.all(pokemonPromises);
+  // Use National Pokedex ranges for accurate generation filtering
+  const pokemonIds = generationRanges.getPokemonIdsForGeneration(generationName);
+  
+  if (pokemonIds.length > 0) {
+    // Fetch all Pokemon in this generation range
+    const pokemonPromises = pokemonIds.map(async (id: number) => {
+      try {
+        return await getPokemon(id);
+      } catch (error) {
+        // Some IDs might not exist, skip them
+        return null;
+      }
+    });
+    
+    const results = await Promise.all(pokemonPromises);
+    return results.filter((p): p is Pokemon => p !== null);
+  } else {
+    // Fallback to PokeAPI generation endpoint if range not found
+    const response = await fetch(`${BASE_URL}/generation/${generationName}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch Pokemon by generation: ${response.statusText}`);
+    }
+    const data = await response.json();
+    
+    // Fetch ALL Pokemon species in this generation
+    const pokemonPromises = data.pokemon_species.map(async (species: any) => {
+      const speciesId = species.url.split('/').filter(Boolean).pop();
+      try {
+        // Get species details to find the Pokemon ID
+        const speciesResponse = await fetch(`${BASE_URL}/pokemon-species/${speciesId}`);
+        if (!speciesResponse.ok) {
+          return null;
+        }
+        const speciesData = await speciesResponse.json();
+        // Get the first Pokemon variant (usually the base form)
+        const pokemonId = speciesData.varieties[0]?.pokemon?.url?.split('/').filter(Boolean).pop();
+        if (pokemonId) {
+          return await getPokemon(pokemonId);
+        }
+        return null;
+      } catch (error) {
+        return null;
+      }
+    });
+    
+    const results = await Promise.all(pokemonPromises);
+    return results.filter((p): p is Pokemon => p !== null);
+  }
 };
 

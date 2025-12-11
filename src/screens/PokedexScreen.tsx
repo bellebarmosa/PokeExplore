@@ -208,50 +208,94 @@ const PokedexScreen = () => {
             const pokemonData = await getPokemon(parseInt(query, 10));
             allPokemon = [pokemonData];
             count = 1;
-          } catch (error) {
-            Alert.alert('Error', 'Pokemon not found');
+          } catch (error: any) {
+            const errorMessage = error?.message || 'Unknown error';
+            if (errorMessage.includes('Failed to fetch') || errorMessage.includes('Network')) {
+              Alert.alert(
+                'Offline Mode',
+                'You are offline. Showing cached data if available. Please check your internet connection.'
+              );
+            } else {
+              Alert.alert('Error', 'Pokemon not found');
+            }
             allPokemon = [];
             count = 0;
           }
         } else {
           // Search by name
-          allPokemon = await searchPokemonByName(query);
-          count = allPokemon.length;
+          try {
+            allPokemon = await searchPokemonByName(query);
+            count = allPokemon.length;
+          } catch (error: any) {
+            const errorMessage = error?.message || 'Unknown error';
+            if (errorMessage.includes('Failed to fetch') || errorMessage.includes('Network')) {
+              Alert.alert(
+                'Offline Mode',
+                'You are offline. Showing cached data if available. Please check your internet connection.'
+              );
+            }
+            allPokemon = [];
+            count = 0;
+          }
         }
       } else {
         // No search query - use filters or default list
         if (selectedType !== 'all' || selectedGeneration !== 'all') {
           // Apply type and/or generation filters
-          if (selectedType !== 'all' && selectedGeneration !== 'all') {
-            // Both filters: get Pokemon by type AND generation
-            const [typePokemon, genPokemon] = await Promise.all([
-              getPokemonByType(selectedType),
-              getPokemonByGeneration(selectedGeneration)
-            ]);
-            
-            // Find intersection: Pokemon that are in both lists
-            const genIds = new Set(genPokemon.map(p => p.id));
-            allPokemon = typePokemon.filter(p => genIds.has(p.id));
-          } else if (selectedType !== 'all') {
-            // Only type filter
-            allPokemon = await getPokemonByType(selectedType);
-          } else if (selectedGeneration !== 'all') {
-            // Only generation filter
-            allPokemon = await getPokemonByGeneration(selectedGeneration);
+          try {
+            if (selectedType !== 'all' && selectedGeneration !== 'all') {
+              // Both filters: get Pokemon by type AND generation
+              const [typePokemon, genPokemon] = await Promise.all([
+                getPokemonByType(selectedType),
+                getPokemonByGeneration(selectedGeneration)
+              ]);
+              
+              // Find intersection: Pokemon that are in both lists
+              const genIds = new Set(genPokemon.map(p => p.id));
+              allPokemon = typePokemon.filter(p => genIds.has(p.id));
+            } else if (selectedType !== 'all') {
+              // Only type filter
+              allPokemon = await getPokemonByType(selectedType);
+            } else if (selectedGeneration !== 'all') {
+              // Only generation filter
+              allPokemon = await getPokemonByGeneration(selectedGeneration);
+            }
+            count = allPokemon.length;
+          } catch (error: any) {
+            const errorMessage = error?.message || 'Unknown error';
+            if (errorMessage.includes('Failed to fetch') || errorMessage.includes('Network')) {
+              Alert.alert(
+                'Offline Mode',
+                'You are offline. Showing cached data if available. Please check your internet connection.'
+              );
+            }
+            allPokemon = [];
+            count = 0;
           }
-          count = allPokemon.length;
         } else {
           // Default: paginated list from API
-          const offset = (page - 1) * ITEMS_PER_PAGE;
-          const response = await getPokemonList(offset, ITEMS_PER_PAGE);
-          count = response.count;
-          
-          const pokemonPromises = response.results.map(async (item) => {
-            const id = item.url.split('/').filter(Boolean).pop();
-            return getPokemon(id!);
-          });
-          
-          allPokemon = await Promise.all(pokemonPromises);
+          try {
+            const offset = (page - 1) * ITEMS_PER_PAGE;
+            const response = await getPokemonList(offset, ITEMS_PER_PAGE);
+            count = response.count;
+            
+            const pokemonPromises = response.results.map(async (item) => {
+              const id = item.url.split('/').filter(Boolean).pop();
+              return getPokemon(id!);
+            });
+            
+            allPokemon = await Promise.all(pokemonPromises);
+          } catch (error: any) {
+            const errorMessage = error?.message || 'Unknown error';
+            if (errorMessage.includes('Failed to fetch') || errorMessage.includes('Network')) {
+              Alert.alert(
+                'Offline Mode',
+                'You are offline. Showing cached data if available. Please check your internet connection.'
+              );
+            }
+            allPokemon = [];
+            count = 0;
+          }
         }
       }
 

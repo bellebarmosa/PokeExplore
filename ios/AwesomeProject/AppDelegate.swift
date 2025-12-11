@@ -3,9 +3,10 @@ import React
 import React_RCTAppDelegate
 import ReactAppDependencyProvider
 import Firebase
+import UserNotifications
 
 @main
-class AppDelegate: UIResponder, UIApplicationDelegate {
+class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
   var window: UIWindow?
 
   var reactNativeDelegate: ReactNativeDelegate?
@@ -17,6 +18,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
   ) -> Bool {
     // Initialize Firebase
     FirebaseApp.configure()
+    
+    // Configure notifications
+    UNUserNotificationCenter.current().delegate = self
     
     let delegate = ReactNativeDelegate()
     let factory = RCTReactNativeFactory(delegate: delegate)
@@ -34,6 +38,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     )
 
     return true
+  }
+  
+  // Handle notifications when app is in foreground
+  func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification,
+    withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+  ) {
+    completionHandler([.alert, .badge, .sound])
+  }
+  
+  // Handle notification tap
+  func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    didReceive response: UNNotificationResponse,
+    withCompletionHandler completionHandler: @escaping () -> Void
+  ) {
+    completionHandler()
   }
   
   // Handle URL callbacks for Google Sign-In

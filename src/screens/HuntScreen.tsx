@@ -15,6 +15,7 @@ import Geolocation from '@react-native-community/geolocation';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import PushNotification from 'react-native-push-notification';
 import { getPokemon, Pokemon, getPokemonByHabitat } from '../services/pokeapi';
 import { detectHabitat } from '../utils/habitatDetection';
 
@@ -36,6 +37,28 @@ interface PokemonMarker {
 const MAX_POKEMON = 10;
 const SPAWN_RADIUS = 0.01; // ~1km radius
 
+/**
+ * Calculate distance between two coordinates in kilometers using Haversine formula
+ */
+const calculateDistance = (
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number => {
+  const R = 6371; // Radius of the Earth in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // Distance in km
+};
+
 const HuntScreen = () => {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
@@ -46,6 +69,57 @@ const HuntScreen = () => {
   const [locationPermission, setLocationPermission] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [imagesLoaded, setImagesLoaded] = useState<Set<number>>(new Set());
+
+  // Configure push notifications
+  useEffect(() => {
+    // Configure notification channel for Android
+    if (Platform.OS === 'android') {
+      PushNotification.createChannel(
+        {
+          channelId: 'pokemon-nearby',
+          channelName: 'Pokemon Nearby',
+          channelDescription: 'Notifications for nearby Pokemon',
+          playSound: true,
+          soundName: 'default',
+          importance: 4, // High importance
+          vibrate: true,
+        },
+        (created) => console.log(`Notification channel created: ${created}`)
+      );
+    }
+
+    // Configure push notification
+    PushNotification.configure({
+      onRegister: function (token) {
+        console.log('TOKEN:', token);
+      },
+      onNotification: function (notification) {
+        console.log('NOTIFICATION:', notification);
+        // Handle notification tap if needed
+        if (notification.userInteraction) {
+          // User tapped the notification
+          console.log('User tapped notification');
+        }
+      },
+      permissions: {
+        alert: true,
+        badge: true,
+        sound: true,
+      },
+      popInitialNotification: true,
+      requestPermissions: Platform.OS === 'ios',
+    });
+
+    // For iOS, request notification permissions
+    if (Platform.OS === 'ios') {
+      PushNotification.requestPermissions();
+    }
+
+    // Request notification permission for Android
+    if (Platform.OS === 'android') {
+      requestNotificationPermission();
+    }
+  }, []);
 
   // Request location permission
   useEffect(() => {
@@ -58,6 +132,28 @@ const HuntScreen = () => {
       getUserLocation();
     }
   }, [locationPermission]);
+
+  const requestNotificationPermission = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+          {
+            title: 'Notification Permission',
+            message: 'PokeExplore needs notification permission to alert you about nearby Pokemon.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          }
+        );
+        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+          console.log('Notification permission granted');
+        }
+      } catch (err) {
+        console.warn('Notification permission error:', err);
+      }
+    }
+  };
 
   const requestLocationPermission = async () => {
     if (Platform.OS === 'android') {
@@ -225,9 +321,14 @@ const HuntScreen = () => {
         setTimeout(() => {
           setImagesLoaded(new Set(markers.map(m => m.id)));
         }, 100);
+        
+        // Notify user about nearest 5 Pokemon (only on initial spawn, not refresh)
+        if (!isRefresh) {
+          notifyNearestPokemon(markers, location);
+        }
       };
       
-      preloadImages();
+      await preloadImages();
     } catch (error) {
       console.error('Failed to spawn Pokemon:', error);
       Alert.alert('Error', 'Failed to load nearby Pokemon. Please try again.');
@@ -253,6 +354,68 @@ const HuntScreen = () => {
     } else {
       getUserLocation();
     }
+  };
+
+  /**
+   * Notify user about the nearest 5 Pokemon
+   */
+  const notifyNearestPokemon = (
+    markers: PokemonMarker[],
+    userLocation: { latitude: number; longitude: number }
+  ) => {
+    if (markers.length === 0) return;
+
+    // Calculate distances and sort by nearest
+    const pokemonWithDistance = markers.map((marker) => {
+      const distance = calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        marker.latitude,
+        marker.longitude
+      );
+      return {
+        ...marker,
+        distance,
+      };
+    });
+
+    // Sort by distance (nearest first) and take top 5
+    const nearest5 = pokemonWithDistance
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 5);
+
+    // Format notification message - keep it concise for notification bar
+    const pokemonList = nearest5
+      .map((p, index) => {
+        const name = p.pokemon.name.charAt(0).toUpperCase() + p.pokemon.name.slice(1);
+        const shinyText = p.isShiny ? '✨' : '';
+        const distanceText = p.distance < 0.1 
+          ? `${Math.round(p.distance * 1000)}m` 
+          : `${p.distance.toFixed(2)}km`;
+        return `${index + 1}. ${name}${shinyText} ${distanceText}`;
+      })
+      .join(', ');
+
+    const title = nearest5.length === 1 
+      ? 'Pokemon Nearby!' 
+      : `${nearest5.length} Pokemon Nearby!`;
+
+    // Send push notification
+    PushNotification.localNotification({
+      channelId: 'pokemon-nearby',
+      title: title,
+      message: pokemonList,
+      playSound: true,
+      soundName: 'default',
+      importance: 'high',
+      priority: 'high',
+      vibrate: true,
+      vibration: 300,
+      userInfo: {
+        type: 'pokemon_nearby',
+        count: nearest5.length,
+      },
+    });
   };
 
   return (

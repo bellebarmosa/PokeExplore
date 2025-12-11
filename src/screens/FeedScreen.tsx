@@ -7,15 +7,30 @@ import {
   Image,
   RefreshControl,
   ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { getFeedPosts, FeedPost } from '../services/feed';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import TypeIcon from '../components/TypeIcon';
 
+type RootStackParamList = {
+  PostDetail: { post: FeedPost };
+  MainTabs: undefined;
+};
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+const POSTS_PER_PAGE = 25;
+
 const FeedScreen = () => {
+  const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
-  const [feedPosts, setFeedPosts] = useState<FeedPost[]>([]);
+  const [allFeedPosts, setAllFeedPosts] = useState<FeedPost[]>([]);
+  const [displayedPosts, setDisplayedPosts] = useState<FeedPost[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -23,11 +38,22 @@ const FeedScreen = () => {
     loadFeedPosts();
   }, []);
 
+  useEffect(() => {
+    updateDisplayedPosts();
+  }, [allFeedPosts, currentPage]);
+
+  const updateDisplayedPosts = () => {
+    const startIndex = (currentPage - 1) * POSTS_PER_PAGE;
+    const endIndex = startIndex + POSTS_PER_PAGE;
+    setDisplayedPosts(allFeedPosts.slice(startIndex, endIndex));
+  };
+
   const loadFeedPosts = async () => {
     try {
       setLoading(true);
-      const posts = await getFeedPosts(50);
-      setFeedPosts(posts);
+      const posts = await getFeedPosts(1000); // Load all posts for pagination
+      setAllFeedPosts(posts);
+      setCurrentPage(1);
     } catch (error) {
       console.error('Failed to load feed posts:', error);
     } finally {
@@ -39,6 +65,24 @@ const FeedScreen = () => {
     setRefreshing(true);
     await loadFeedPosts();
     setRefreshing(false);
+  };
+
+  const totalPages = Math.ceil(allFeedPosts.length / POSTS_PER_PAGE);
+
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(prev => prev + 1);
+    }
+  };
+
+  const goToPreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(prev => prev - 1);
+    }
+  };
+
+  const handlePostPress = (post: FeedPost) => {
+    navigation.navigate('PostDetail', { post });
   };
 
   const formatDate = (dateString: string): string => {
@@ -97,7 +141,11 @@ const FeedScreen = () => {
       const achievementInfo = parseAchievementInfo(item.achievementName);
       
       return (
-        <View style={styles.feedPostCard}>
+        <TouchableOpacity 
+          style={styles.feedPostCard}
+          onPress={() => handlePostPress(item)}
+          activeOpacity={0.7}
+        >
           <View style={styles.feedPostIconContainer}>
             {achievementInfo.isCatch ? (
               <View style={styles.pokeballIconWithBadgeFeed}>
@@ -130,11 +178,15 @@ const FeedScreen = () => {
             </Text>
             <Text style={styles.feedPostDate}>{formatDate(item.createdAt)}</Text>
           </View>
-        </View>
+        </TouchableOpacity>
       );
     } else {
       return (
-        <View style={styles.feedPostCard}>
+        <TouchableOpacity 
+          style={styles.feedPostCard}
+          onPress={() => handlePostPress(item)}
+          activeOpacity={0.7}
+        >
           <Image
             source={{ uri: item.pokemonSprite || 'https://via.placeholder.com/60' }}
             style={styles.feedPostImage}
@@ -146,12 +198,12 @@ const FeedScreen = () => {
             </Text>
             <Text style={styles.feedPostDate}>{formatDate(item.createdAt)}</Text>
           </View>
-        </View>
+        </TouchableOpacity>
       );
     }
   };
 
-  if (loading && feedPosts.length === 0) {
+  if (loading && allFeedPosts.length === 0) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
@@ -170,7 +222,7 @@ const FeedScreen = () => {
         <Text style={styles.title}>Feed</Text>
       </View>
       <FlatList
-        data={feedPosts}
+        data={displayedPosts}
         renderItem={renderFeedPost}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.feedList}
@@ -181,6 +233,38 @@ const FeedScreen = () => {
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No feed posts yet. Start catching Pokemon!</Text>
           </View>
+        }
+        ListFooterComponent={
+          allFeedPosts.length > 0 ? (
+            <View style={styles.paginationContainer}>
+              <Text style={styles.paginationText}>
+                Showing {Math.min((currentPage - 1) * POSTS_PER_PAGE + 1, allFeedPosts.length)} - {Math.min(currentPage * POSTS_PER_PAGE, allFeedPosts.length)} of {allFeedPosts.length} posts
+              </Text>
+              <View style={styles.paginationButtons}>
+                <TouchableOpacity
+                  style={[styles.paginationButton, currentPage === 1 && styles.paginationButtonDisabled]}
+                  onPress={goToPreviousPage}
+                  disabled={currentPage === 1}
+                >
+                  <Text style={[styles.paginationButtonText, currentPage === 1 && styles.paginationButtonTextDisabled]}>
+                    Previous
+                  </Text>
+                </TouchableOpacity>
+                <Text style={styles.pageNumberText}>
+                  Page {currentPage} of {totalPages}
+                </Text>
+                <TouchableOpacity
+                  style={[styles.paginationButton, currentPage === totalPages && styles.paginationButtonDisabled]}
+                  onPress={goToNextPage}
+                  disabled={currentPage === totalPages}
+                >
+                  <Text style={[styles.paginationButtonText, currentPage === totalPages && styles.paginationButtonTextDisabled]}>
+                    Next
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null
         }
       />
     </View>
@@ -303,6 +387,49 @@ const styles = StyleSheet.create({
     color: '#7f8c8d',
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  paginationContainer: {
+    padding: 20,
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    marginTop: 8,
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginBottom: 16,
+  },
+  paginationText: {
+    fontSize: 14,
+    color: '#7f8c8d',
+    marginBottom: 12,
+  },
+  paginationButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  paginationButton: {
+    backgroundColor: '#3498db',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  paginationButtonDisabled: {
+    backgroundColor: '#bdc3c7',
+    opacity: 0.6,
+  },
+  paginationButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  paginationButtonTextDisabled: {
+    color: '#7f8c8d',
+  },
+  pageNumberText: {
+    fontSize: 14,
+    color: '#2c3e50',
+    fontWeight: '600',
   },
 });
 

@@ -28,5 +28,58 @@ target 'AwesomeProject' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+    
+    # Fix for non-modular-include-in-framework-module errors and Firebase module issues
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        config.build_settings['CLANG_WARN_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'NO'
+        config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+        
+        # Fix Firebase header search paths for all targets
+        header_paths = config.build_settings['HEADER_SEARCH_PATHS'] || ['$(inherited)']
+        header_paths = header_paths.is_a?(String) ? header_paths.split(' ') : header_paths.dup
+        header_paths << '$(PODS_ROOT)/FirebaseCore/FirebaseCore/Sources/Public' unless header_paths.include?('$(PODS_ROOT)/FirebaseCore/FirebaseCore/Sources/Public')
+        header_paths << '$(PODS_ROOT)/FirebaseCore/FirebaseCore/Sources' unless header_paths.include?('$(PODS_ROOT)/FirebaseCore/FirebaseCore/Sources')
+        header_paths << '$(PODS_ROOT)/Firebase/CoreOnly/Sources' unless header_paths.include?('$(PODS_ROOT)/Firebase/CoreOnly/Sources')
+        config.build_settings['HEADER_SEARCH_PATHS'] = header_paths
+        
+        # Remove the error flag and add the no-error flag
+        ['OTHER_CFLAGS', 'OTHER_CPLUSPLUSFLAGS'].each do |flag_key|
+          flags = config.build_settings[flag_key]
+          if flags
+            if flags.is_a?(String)
+              flags = flags.split(' ').reject { |f| f.include?('non-modular-include-in-framework-module') }
+            else
+              flags = flags.reject { |f| f.to_s.include?('non-modular-include-in-framework-module') }
+            end
+            flags << '-Wno-error=non-modular-include-in-framework-module' unless flags.any? { |f| f.to_s.include?('-Wno-error=non-modular-include-in-framework-module') }
+            config.build_settings[flag_key] = flags
+          else
+            config.build_settings[flag_key] = ['$(inherited)', '-Wno-error=non-modular-include-in-framework-module']
+          end
+        end
+      end
+    end
+    
+    # Also apply Firebase fixes to the main app target
+    installer.aggregate_targets.each do |aggregate_target|
+      aggregate_target.user_project.native_targets.each do |target|
+        target.build_configurations.each do |config|
+          config.build_settings['CLANG_WARN_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'NO'
+          config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+          # Add Firebase header search paths to main app target
+          header_paths = config.build_settings['HEADER_SEARCH_PATHS'] || ['$(inherited)']
+          header_paths = header_paths.is_a?(String) ? header_paths.split(' ') : header_paths.dup
+          header_paths << '$(PODS_ROOT)/FirebaseCore/FirebaseCore/Sources/Public' unless header_paths.include?('$(PODS_ROOT)/FirebaseCore/FirebaseCore/Sources/Public')
+          header_paths << '$(PODS_ROOT)/FirebaseCore/FirebaseCore/Sources' unless header_paths.include?('$(PODS_ROOT)/FirebaseCore/FirebaseCore/Sources')
+          config.build_settings['HEADER_SEARCH_PATHS'] = header_paths
+          # Ensure framework search paths include Pods frameworks
+          framework_paths = config.build_settings['FRAMEWORK_SEARCH_PATHS'] || ['$(inherited)']
+          framework_paths = framework_paths.is_a?(String) ? framework_paths.split(' ') : framework_paths.dup
+          framework_paths << '$(PODS_CONFIGURATION_BUILD_DIR)' unless framework_paths.include?('$(PODS_CONFIGURATION_BUILD_DIR)')
+          config.build_settings['FRAMEWORK_SEARCH_PATHS'] = framework_paths
+        end
+      end
+    end
   end
 end

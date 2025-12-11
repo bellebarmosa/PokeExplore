@@ -1,5 +1,4 @@
 import UIKit
-import React
 import React_RCTAppDelegate
 import ReactAppDependencyProvider
 import Firebase
@@ -32,7 +31,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     window = UIWindow(frame: UIScreen.main.bounds)
 
     factory.startReactNative(
-      withModuleName: "AwesomeProject",
+      withModuleName: "PokeExplorer",
       in: window,
       launchOptions: launchOptions
     )

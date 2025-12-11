@@ -49,7 +49,7 @@ const PokemonCatchScreen = () => {
   const { user } = useAuth();
   const { pokemon, location, isShiny, autoStartAR } = route.params;
   const [catching, setCatching] = useState(false);
-  const [catchMethod, setCatchMethod] = useState<'default' | 'ar' | null>(autoStartAR ? 'ar' : null);
+  const [catchMethod, setCatchMethod] = useState<'default' | 'ar' | null>(autoStartAR ? 'ar' : 'ar'); // Always start with AR
   const [attempts, setAttempts] = useState(0);
   const [throwing, setThrowing] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
@@ -188,7 +188,7 @@ const PokemonCatchScreen = () => {
               text: 'Keep Private',
               style: 'cancel',
               onPress: () => {
-                navigation.navigate('MainTabs');
+                navigation.goBack(); // Go back to map instead of navigating to MainTabs
               },
             },
             {
@@ -207,7 +207,7 @@ const PokemonCatchScreen = () => {
                     {
                       text: 'OK',
                       onPress: () => {
-                        navigation.navigate('MainTabs');
+                        navigation.goBack(); // Go back to map instead of navigating to MainTabs
                       },
                     },
                   ]);
@@ -217,7 +217,7 @@ const PokemonCatchScreen = () => {
                     {
                       text: 'OK',
                       onPress: () => {
-                        navigation.navigate('MainTabs');
+                        navigation.goBack(); // Go back to map instead of navigating to MainTabs
                       },
                     },
                   ]);
@@ -323,7 +323,7 @@ const PokemonCatchScreen = () => {
                   setCatchMethod(null);
                   setAttempts(0);
                   setThrowing(false);
-                  navigation.navigate('MainTabs');
+                  navigation.goBack(); // Go back to map instead of navigating to MainTabs
                 },
               },
             ]
@@ -495,6 +495,22 @@ const PokemonCatchScreen = () => {
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* Capture Button - AR Mode */}
+        <View style={styles.catchOptions}>
+          <TouchableOpacity
+            style={[styles.catchMethodButton, styles.arButton]}
+            onPress={() => {
+              setCatchMethod('ar');
+              setAttempts(0);
+              setThrowing(false);
+            }}
+            disabled={catching}
+          >
+            <Text style={styles.catchMethodButtonText}>Capture Pokemon</Text>
+            <Text style={styles.catchMethodButtonSubtext}>Use AR mode to catch</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Default Background with Type Color */}
         <View style={[styles.imageContainer, { backgroundColor: primaryTypeColor + '20' }]}>
           <Image source={{ uri: imageUrl }} style={styles.pokemonImage} />
@@ -558,38 +574,6 @@ const PokemonCatchScreen = () => {
               </View>
             ))}
           </View>
-        </View>
-
-        <View style={styles.catchOptions}>
-          <Text style={styles.catchOptionsTitle}>Choose Catch Method:</Text>
-          
-          <TouchableOpacity
-            style={[styles.catchMethodButton, styles.defaultButton]}
-            onPress={() => handleCatch('default')}
-            disabled={catching}
-          >
-            {catching && catchMethod === 'default' ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Text style={styles.catchMethodButtonText}>Default Background</Text>
-                <Text style={styles.catchMethodButtonSubtext}>Catch with type-colored background</Text>
-              </>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.catchMethodButton, styles.arButton]}
-            onPress={() => {
-              setCatchMethod('ar');
-              setAttempts(0);
-              setThrowing(false);
-            }}
-            disabled={catching}
-          >
-            <Text style={styles.catchMethodButtonText}>AR Mode</Text>
-            <Text style={styles.catchMethodButtonSubtext}>Catch using camera (AR)</Text>
-          </TouchableOpacity>
         </View>
       </ScrollView>
     </View>
@@ -730,17 +714,10 @@ const styles = StyleSheet.create({
   catchOptions: {
     padding: 20,
     backgroundColor: '#fff',
-    marginTop: 8,
+    marginTop: 16,
     marginHorizontal: 16,
     borderRadius: 12,
-    marginBottom: 16,
-  },
-  catchOptionsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    marginBottom: 16,
-    textAlign: 'center',
+    marginBottom: 8,
   },
   catchMethodButton: {
     padding: 20,

@@ -62,6 +62,12 @@ export interface Pokemon {
   };
   height: number;
   weight: number;
+  moves?: Array<{
+    move: {
+      name: string;
+      url: string;
+    };
+  }>;
 }
 
 export interface PokemonListItem {

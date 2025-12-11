@@ -17,6 +17,7 @@ import Voice from '@react-native-voice/voice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useAuth } from '../contexts/AuthContext';
 import TypePicker from '../components/TypePicker';
 import RegionPicker from '../components/RegionPicker';
 import {
@@ -30,6 +31,7 @@ import {
   Pokemon,
 } from '../services/pokeapi';
 import { isPokemonInGeneration } from '../utils/generationRanges';
+import { getCaughtPokemon, isPokemonCaught } from '../services/pokemonStorage';
 
 // Type color mapping
 const getTypeColor = (type: string): string => {
@@ -69,6 +71,7 @@ const POKEDEX_RED = '#e83030'; // Define the red color
 const PokedexScreen = () => {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const [pokemonList, setPokemonList] = useState<Pokemon[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -81,6 +84,25 @@ const PokedexScreen = () => {
   const [totalPages, setTotalPages] = useState<number>(1);
   const [isListening, setIsListening] = useState(false);
   const [hasMicPermission, setHasMicPermission] = useState(false);
+  const [caughtPokemonIds, setCaughtPokemonIds] = useState<Set<number>>(new Set());
+  const [caughtCount, setCaughtCount] = useState<number>(0);
+
+  // Load caught Pokemon IDs
+  useEffect(() => {
+    const loadCaughtPokemon = async () => {
+      if (user) {
+        try {
+          const caught = await getCaughtPokemon(user.uid);
+          const caughtIds = new Set(caught.map(p => p.id));
+          setCaughtPokemonIds(caughtIds);
+          setCaughtCount(caughtIds.size);
+        } catch (error) {
+          console.error('Failed to load caught Pokemon:', error);
+        }
+      }
+    };
+    loadCaughtPokemon();
+  }, [user]);
 
   // Request microphone permission
   useEffect(() => {
@@ -336,9 +358,13 @@ const PokedexScreen = () => {
       }
 
       setPokemonList(pokemon);
-      setTotalCount(count);
-      if (count !== null) {
-        setTotalPages(Math.ceil(count / ITEMS_PER_PAGE));
+      // Use the total count from API (1025) or the filtered count
+      const finalCount = searchQuery.trim() || selectedType !== 'all' || selectedGeneration !== 'all' 
+        ? count 
+        : (count || 1025); // Default to 1025 if count is null
+      setTotalCount(finalCount);
+      if (finalCount !== null) {
+        setTotalPages(Math.ceil(finalCount / ITEMS_PER_PAGE));
       }
     } catch (error) {
       console.error('Failed to load Pokemon:', error);
@@ -459,6 +485,7 @@ const PokedexScreen = () => {
     const imageUrl = item.sprites.other?.['official-artwork']?.front_default || 
                     item.sprites.front_default || 
                     'https://via.placeholder.com/200';
+    const isCaught = caughtPokemonIds.has(item.id);
 
     return (
       <TouchableOpacity
@@ -466,6 +493,11 @@ const PokedexScreen = () => {
         onPress={() => handlePokemonPress(item)}
         activeOpacity={0.7}
       >
+        {isCaught && (
+          <View style={styles.caughtBadge}>
+            <Text style={styles.caughtBadgeText}>✓ Caught</Text>
+          </View>
+        )}
         <Image source={{ uri: imageUrl }} style={styles.pokemonImage} />
         <Text style={styles.pokemonName}>{item.name.charAt(0).toUpperCase() + item.name.slice(1)}</Text>
         <Text style={styles.pokemonId}>#{String(item.id).padStart(3, '0')}</Text>
@@ -484,6 +516,9 @@ const PokedexScreen = () => {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Text style={styles.title}>Pokedex</Text>
+        <Text style={styles.statusText}>
+          Caught {caughtCount} of 1025 total Pokemon
+        </Text>
       </View>
 
       <View style={styles.searchContainer}>
@@ -625,6 +660,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#fff',
     marginTop: 8,
+    marginBottom: 4,
+  },
+  statusText: {
+    fontSize: 14,
+    color: '#fff',
+    opacity: 0.9,
+    marginTop: 4,
   },
   searchContainer: {
     padding: 16,
@@ -721,6 +763,22 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    position: 'relative',
+  },
+  caughtBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#27ae60',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    zIndex: 1,
+  },
+  caughtBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   pokemonImage: {
     width: 120,

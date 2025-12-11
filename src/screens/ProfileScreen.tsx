@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { getCaughtPokemon, CaughtPokemon } from '../services/pokemonStorage';
 import { getTypeColor } from '../utils/typeColors';
 import { getUserAchievements, Achievement } from '../services/achievements';
@@ -21,9 +23,17 @@ import { getUserProfile, updateUserProfile } from '../services/userProfile';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import TypeIcon from '../components/TypeIcon';
 
+type RootStackParamList = {
+  PostDetail: { post: FeedPost };
+  MainTabs: undefined;
+};
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
 const ProfileScreen = () => {
   const { user, signOut } = useAuth();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NavigationProp>();
   const [caughtPokemon, setCaughtPokemon] = useState<CaughtPokemon[]>([]);
   const [latestCaughtPokemon, setLatestCaughtPokemon] = useState<CaughtPokemon[]>([]);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
@@ -122,6 +132,21 @@ const ProfileScreen = () => {
     }
   };
 
+  const handlePokemonPress = (pokemon: CaughtPokemon) => {
+    // Create a feed post-like object to navigate to PostDetail
+    const feedPost: FeedPost = {
+      id: `caught-${pokemon.id}`,
+      userId: user?.uid || '',
+      userDisplayName: savedDisplayName || displayName || 'Trainer',
+      postType: 'catch',
+      pokemonName: pokemon.name,
+      pokemonId: pokemon.id,
+      pokemonSprite: pokemon.sprites.other?.['official-artwork']?.front_default || pokemon.sprites.front_default || '',
+      createdAt: pokemon.caughtAt,
+    };
+    navigation.navigate('PostDetail', { post: feedPost });
+  };
+
   const renderPokemonItem = ({ item }: { item: CaughtPokemon }) => {
     const imageUrl = item.isShiny
       ? (item.sprites.other?.['official-artwork']?.front_shiny ||
@@ -134,7 +159,11 @@ const ProfileScreen = () => {
           'https://via.placeholder.com/200');
 
     return (
-      <View style={styles.pokemonCard}>
+      <TouchableOpacity 
+        style={styles.pokemonCard}
+        onPress={() => handlePokemonPress(item)}
+        activeOpacity={0.7}
+      >
         {item.isShiny && (
           <View style={styles.shinyIndicator}>
             <Text style={styles.shinyIndicatorText}>✨</Text>
@@ -145,7 +174,7 @@ const ProfileScreen = () => {
           {item.name.charAt(0).toUpperCase() + item.name.slice(1)}
         </Text>
         <Text style={styles.pokemonId}>#{String(item.id).padStart(3, '0')}</Text>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -218,12 +247,20 @@ const ProfileScreen = () => {
     );
   };
 
+  const handlePostPress = (post: FeedPost) => {
+    navigation.navigate('PostDetail', { post });
+  };
+
   const renderFeedPostItem = ({ item }: { item: FeedPost }) => {
     if (item.postType === 'achievement' && item.achievementName) {
       const achievementInfo = parseAchievementInfo(item.achievementName);
       
       return (
-        <View style={styles.feedPostCard}>
+        <TouchableOpacity 
+          style={styles.feedPostCard}
+          onPress={() => handlePostPress(item)}
+          activeOpacity={0.7}
+        >
           {achievementInfo.isCatch ? (
             <View style={styles.pokeballIconWithBadgeFeed}>
               <Image
@@ -256,11 +293,15 @@ const ProfileScreen = () => {
               {new Date(item.createdAt).toLocaleDateString()}
             </Text>
           </View>
-        </View>
+        </TouchableOpacity>
       );
     } else {
       return (
-        <View style={styles.feedPostCard}>
+        <TouchableOpacity 
+          style={styles.feedPostCard}
+          onPress={() => handlePostPress(item)}
+          activeOpacity={0.7}
+        >
           <Image
             source={{ uri: item.pokemonSprite || 'https://via.placeholder.com/50' }}
             style={styles.feedPostImage}
@@ -274,7 +315,7 @@ const ProfileScreen = () => {
               {new Date(item.createdAt).toLocaleDateString()}
             </Text>
           </View>
-        </View>
+        </TouchableOpacity>
       );
     }
   };

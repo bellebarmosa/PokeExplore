@@ -9,6 +9,7 @@ import {
   PermissionsAndroid,
   Platform,
   Image,
+  InteractionManager,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import Geolocation from '@react-native-community/geolocation';
@@ -115,9 +116,19 @@ const HuntScreen = () => {
       PushNotification.requestPermissions();
     }
 
-    // Request notification permission for Android
+    // Request notification permission for Android - delay to ensure Activity is ready
     if (Platform.OS === 'android') {
-      requestNotificationPermission();
+      // Use InteractionManager to wait until the app is interactive
+      const interactionHandle = InteractionManager.runAfterInteractions(() => {
+        // Additional delay to ensure Activity is fully attached
+        setTimeout(() => {
+          requestNotificationPermission();
+        }, 500);
+      });
+      
+      return () => {
+        interactionHandle.cancel();
+      };
     }
   }, []);
 
@@ -136,6 +147,17 @@ const HuntScreen = () => {
   const requestNotificationPermission = async () => {
     if (Platform.OS === 'android') {
       try {
+        // Check if permission is already granted
+        const checkResult = await PermissionsAndroid.check(
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+        );
+        
+        if (checkResult) {
+          console.log('Notification permission already granted');
+          return;
+        }
+
+        // Request permission only if not already granted
         const granted = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
           {
@@ -150,6 +172,7 @@ const HuntScreen = () => {
           console.log('Notification permission granted');
         }
       } catch (err) {
+        // Silently handle the error - it's not critical for app functionality
         console.warn('Notification permission error:', err);
       }
     }
@@ -454,6 +477,9 @@ const HuntScreen = () => {
           showsUserLocation={true}
           showsMyLocationButton={true}
           key={`map-${pokemonMarkers.length}`}
+          onUserLocationChange={() => {
+            // Silently handle user location change to prevent error
+          }}
         >
           {/* User location marker */}
           <Marker

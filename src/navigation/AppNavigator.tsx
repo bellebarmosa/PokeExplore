@@ -9,6 +9,8 @@ import SignupScreen from '../screens/SignupScreen';
 import TabNavigator from './TabNavigator';
 import PokemonDetailScreen from '../screens/PokemonDetailScreen';
 import PokemonCatchScreen from '../screens/PokemonCatchScreen';
+import PostDetailScreen from '../screens/PostDetailScreen';
+import { FeedPost } from '../services/feed';
 
 export type RootStackParamList = {
   Login: undefined;
@@ -16,6 +18,7 @@ export type RootStackParamList = {
   MainTabs: undefined;
   PokemonDetail: { pokemonId: number };
   PokemonCatch: { pokemon: any; location: { latitude: number; longitude: number }; isShiny: boolean; autoStartAR?: boolean };
+  PostDetail: { post: FeedPost };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -52,6 +55,13 @@ const AppNavigator = () => {
             <Stack.Screen 
               name="PokemonCatch" 
               component={PokemonCatchScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen 
+              name="PostDetail" 
+              component={PostDetailScreen}
               options={{
                 headerShown: false,
               }}

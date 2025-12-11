@@ -115,14 +115,13 @@ const PokedexScreen = () => {
     // Check if Voice module is available and properly initialized
     try {
       if (!Voice) {
-        // Silently fail - voice search will be disabled
+        console.warn('Voice module not available');
         return;
       }
 
       // Check if Voice methods exist (indicates native module is linked)
-      if (typeof Voice.onSpeechStart === 'undefined') {
-        // Silently fail - voice search will be disabled
-        // This is expected if the app wasn't rebuilt after installing the package
+      if (typeof Voice.onSpeechStart === 'undefined' || typeof Voice.start !== 'function') {
+        console.warn('Voice module not properly linked - native methods not available');
         return;
       }
 
@@ -394,7 +393,7 @@ const PokedexScreen = () => {
       if (typeof Voice.start !== 'function' || typeof Voice.onSpeechStart === 'undefined') {
         Alert.alert(
           'Voice Search Not Linked',
-          'Voice recognition module is not properly linked. Please rebuild the app:\n\n1. Stop the Metro bundler\n2. Run: cd android && ./gradlew clean\n3. Run: npx react-native run-android'
+          'Voice recognition module is not properly linked. Please rebuild the app:\n\n1. Stop the Metro bundler\n2. Run: cd android && ./gradlew clean\n3. Run: npx react-native run-android\n\nIf the issue persists, try:\n- Uninstall the app from your device\n- Rebuild and reinstall'
         );
         return;
       }
